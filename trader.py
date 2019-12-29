@@ -239,6 +239,12 @@ class Trader:
             assert self.strategy.sell_limit_price
             self.strategy.buy_stop_price = None
             self.strategy.sell_stop_price = None
+        # For stop orders we only need stop prices.
+        elif self.strategy.first_order_type == 'stop':
+            assert self.strategy.buy_stop_price
+            assert self.strategy.sell_stop_price
+            self.strategy.buy_limit_price = None
+            self.strategy.sell_limit_price = None
         # For stop limit orders we need all prices.
         elif self.strategy.first_order_type == 'stop_limit':
             assert self.strategy.buy_limit_price
