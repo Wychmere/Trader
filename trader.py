@@ -162,11 +162,11 @@ class Trader:
 
             # Check which set of order prices we should use.
             if first_order_side == 'buy':
-                limit_price = self.strategy.buy_limit_price
-                stop_price = self.strategy.buy_stop_price
+                limit_price = self.strategy.initial_buy_limit_price
+                stop_price = self.strategy.initial_buy_stop_price
             elif first_order_side == 'sell':
-                limit_price = self.strategy.sell_limit_price
-                stop_price = self.strategy.sell_stop_price
+                limit_price = self.strategy.initial_sell_limit_price
+                stop_price = self.strategy.initial_sell_stop_price
 
             # Generate the order parameters.
             order_parameters = {
@@ -198,11 +198,11 @@ class Trader:
 
                 # Check which set of order prices we should use.
                 if self.state['next_order_side'] == 'buy':
-                    limit_price = self.strategy.buy_limit_price
-                    stop_price = self.strategy.buy_stop_price
+                    limit_price = self.strategy.loop_buy_limit_price
+                    stop_price = self.strategy.loop_buy_stop_price
                 elif self.state['next_order_side'] == 'sell':
-                    limit_price = self.strategy.sell_limit_price
-                    stop_price = self.strategy.sell_stop_price
+                    limit_price = self.strategy.loop_sell_limit_price
+                    stop_price = self.strategy.loop_sell_stop_price
 
                 # Generate the order parameters.
                 order_parameters = {
@@ -229,28 +229,46 @@ class Trader:
         '''
         # For market orders we don't need any price parameters.
         if self.strategy.first_order_type == 'market':
-            self.strategy.buy_limit_price = None
-            self.strategy.buy_stop_price = None
-            self.strategy.sell_limit_price = None
-            self.strategy.sell_stop_price = None
+            self.strategy.initial_buy_limit_price = None
+            self.strategy.initial_buy_stop_price = None
+            self.strategy.initial_sell_limit_price = None
+            self.strategy.initial_sell_stop_price = None
+            self.strategy.loop_buy_limit_price = None
+            self.strategy.loop_buy_stop_price = None
+            self.strategy.loop_sell_limit_price = None
+            self.strategy.loop_sell_stop_price = None
+            self.strategy.loop_buy_stop_price = None
+            self.strategy.loop_sell_stop_price = None
         # For limit orders we need limit prices but not stop prices.
         elif self.strategy.first_order_type == 'limit':
-            assert self.strategy.buy_limit_price
-            assert self.strategy.sell_limit_price
-            self.strategy.buy_stop_price = None
-            self.strategy.sell_stop_price = None
+            assert self.strategy.initial_buy_limit_price
+            assert self.strategy.initial_sell_limit_price
+            assert self.strategy.loop_sell_limit_price
+            assert self.strategy.loop_buy_limit_price
+            self.strategy.initial_buy_stop_price = None
+            self.strategy.initial_sell_stop_price = None
+            self.strategy.loop_buy_stop_price = None
+            self.strategy.loop_sell_stop_price = None
         # For stop orders we only need stop prices.
         elif self.strategy.first_order_type == 'stop':
-            assert self.strategy.buy_stop_price
-            assert self.strategy.sell_stop_price
-            self.strategy.buy_limit_price = None
-            self.strategy.sell_limit_price = None
+            assert self.strategy.initial_buy_stop_price
+            assert self.strategy.initial_sell_stop_price
+            assert self.loop.initial_buy_stop_price
+            assert self.loop.initial_sell_stop_price
+            self.strategy.initial_buy_limit_price = None
+            self.strategy.initial_sell_limit_price = None
+            self.strategy.loop_buy_limit_price = None
+            self.strategy.loop_sell_limit_price = None
         # For stop limit orders we need all prices.
         elif self.strategy.first_order_type == 'stop_limit':
-            assert self.strategy.buy_limit_price
-            assert self.strategy.sell_limit_price
-            assert self.strategy.buy_stop_price
-            assert self.strategy.sell_stop_price
+            assert self.strategy.initial_buy_limit_price
+            assert self.strategy.initial_sell_limit_price
+            assert self.strategy.initial_buy_stop_price
+            assert self.strategy.initial_sell_stop_price
+            assert self.strategy.loop_buy_limit_price
+            assert self.strategy.loop_sell_limit_price
+            assert self.strategy.loop_buy_stop_price
+            assert self.strategy.loop_sell_stop_price
 
 # TODO: Remove after testing.
 if __name__ == '__main__':
