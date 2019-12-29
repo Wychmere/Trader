@@ -237,8 +237,6 @@ class Trader:
             self.strategy.loop_buy_stop_price = None
             self.strategy.loop_sell_limit_price = None
             self.strategy.loop_sell_stop_price = None
-            self.strategy.loop_buy_stop_price = None
-            self.strategy.loop_sell_stop_price = None
         # For limit orders we need limit prices but not stop prices.
         elif self.strategy.first_order_type == 'limit':
             assert self.strategy.initial_buy_limit_price
