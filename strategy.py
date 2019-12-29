@@ -19,18 +19,12 @@ initial_buy_stop_price = None
 initial_sell_limit_price = 220
 initial_sell_stop_price = None
 
-initial_buy_stop_price = 199
-initial_sell_stop_price = 201
-
 # The loop order prices will be used for each order after the initial one.
 loop_buy_limit_price = 200
 loop_buy_stop_price = None
 
 loop_sell_limit_price = 225
 loop_sell_stop_price = None
-
-loop_buy_stop_price = 200
-loop_sell_stop_price = 210
 
 # Valid values for time_in_force: day, gtc, opg, cls, ioc, fok
 time_in_force = 'gtc'
