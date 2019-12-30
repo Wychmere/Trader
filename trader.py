@@ -30,6 +30,8 @@ class Trader:
 
         # The strategy module will be always available.
         self.strategy = strategy
+        # Make sure that the strategy is safe.
+        self._make_strategy_safe()
 
         # Trader supports single symbol at this point.
         self.symbol = self.strategy.symbol
@@ -100,9 +102,6 @@ class Trader:
         '''
         Handle all errors.
         '''
-        # Make sure that we have a strategy to execute.
-        assert self.strategy
-
         while True:
             try:
                 self._loop()
@@ -153,9 +152,6 @@ class Trader:
         '''
         # Executed only at the initial run.
         if not self.state:
-            # Make sure that the strategy is safe.
-            self._make_strategy_safe()
-
             # The side map will be used for order side switching.
             self.state['side_map'] = {'buy': 'sell', 'sell': 'buy'}
             first_order_side = self.strategy.first_order_side
@@ -251,8 +247,8 @@ class Trader:
         elif self.strategy.first_order_type == 'stop':
             assert self.strategy.initial_buy_stop_price
             assert self.strategy.initial_sell_stop_price
-            assert self.loop.initial_buy_stop_price
-            assert self.loop.initial_sell_stop_price
+            assert self.strategy.loop_buy_stop_price
+            assert self.strategy.loop_sell_stop_price
             self.strategy.initial_buy_limit_price = None
             self.strategy.initial_sell_limit_price = None
             self.strategy.loop_buy_limit_price = None
@@ -267,13 +263,3 @@ class Trader:
             assert self.strategy.loop_sell_limit_price
             assert self.strategy.loop_buy_stop_price
             assert self.strategy.loop_sell_stop_price
-
-# TODO: Remove after testing.
-if __name__ == '__main__':
-    tr = Trader(
-        api_key=config.api_key,
-        api_secret=config.api_secret,
-        config=config,
-        strategy=strategy)
-
-    tr.run_forever()
