@@ -6,26 +6,17 @@ symbol = 'AAPL'
 quantity = 1
 first_order_side = 'buy'
 initial_order_type = 'stop'
-loop_order_type = 'limit'
+loop_order_type = 'stop'
 
-# For Market orders set all prices to None.
-# For Limit orders set stop prices to None.
-# For Stop Limit orders set both limit and stop prices to some value.
-# For Stop orders set stop prices to some value.
-
+# TODO add documentation about the usage of price and spread variables.
 # The initial order prices will be used only for the first order.
-initial_buy_limit_price = 295
-initial_buy_stop_price = 296
-
-initial_sell_limit_price = 222
-initial_sell_stop_price = 221
+initial_trade_price = 290
+initial_limit_spread = 2
 
 # The loop order prices will be used for each order after the initial one.
-loop_buy_limit_price = 219
-loop_buy_stop_price = 218
-
-loop_sell_limit_price = 222
-loop_sell_stop_price = 221
+loop_signal_price = 220
+loop_trade_spread = 2
+loop_limit_spread = 2
 
 # Valid values for time_in_force: day, gtc, opg, cls, ioc, fok
 time_in_force = 'gtc'

@@ -96,12 +96,19 @@ class Trader:
             'timestamp': '2019-12-28T19:48:41.067338957-05:00'
         }
         '''
-        return self.client.get_clock()
+        clock = self.client.get_clock()
+        return clock._raw
 
     def run_forever(self):
         '''
-        Handle all errors.
+        Handles all errors except KeyboardInterrupt.
         '''
+
+        # Report if the market is open or closed.
+        market_state = 'open' if self.get_clock()['is_open'] else 'closed'
+        self.log.info('Starting Trader. The market is {}.'.format(market_state))
+
+        # Run forever.
         while True:
             try:
                 self._loop()
@@ -223,48 +230,54 @@ class Trader:
         Check the set of parameters in the strategy and make sure
         that unneeded ones are set to None and needed ones are not.
         '''
+        initial_trade_price = self.strategy.initial_trade_price
+        initial_limit_spread = self.strategy.initial_limit_spread
+        loop_signal_price = self.strategy.loop_signal_price
+        loop_trade_spread = self.strategy.loop_trade_spread
+        loop_limit_spread = self.strategy.loop_limit_spread
+
         # We can't have market loop orders.
         assert self.strategy.loop_order_type != 'market'
 
-        # For market orders we don't need any price parameters.
+        # Generate explicit order prices from the prices in the strategy.
         if self.strategy.initial_order_type == 'market':
             self.strategy.initial_buy_limit_price = None
             self.strategy.initial_buy_stop_price = None
             self.strategy.initial_sell_limit_price = None
             self.strategy.initial_sell_stop_price = None
 
-        # For limit orders we need limit prices but not stop prices.
         if self.strategy.initial_order_type == 'limit':
-            assert self.strategy.initial_buy_limit_price
-            assert self.strategy.initial_sell_limit_price
+            self.strategy.initial_buy_limit_price = initial_trade_price
+            self.strategy.initial_sell_limit_price = initial_trade_price
             self.strategy.initial_buy_stop_price = None
             self.strategy.initial_sell_stop_price = None
+
         if self.strategy.loop_order_type == 'limit':
-            assert self.strategy.loop_sell_limit_price
-            assert self.strategy.loop_buy_limit_price
+            self.strategy.loop_buy_limit_price = loop_signal_price + loop_trade_spread + loop_limit_spread
+            self.strategy.loop_sell_limit_price = loop_signal_price - loop_trade_spread - loop_limit_spread
             self.strategy.loop_buy_stop_price = None
             self.strategy.loop_sell_stop_price = None
 
-        # For stop orders we only need stop prices.
         if self.strategy.initial_order_type == 'stop':
-            assert self.strategy.initial_buy_stop_price
-            assert self.strategy.initial_sell_stop_price
             self.strategy.initial_buy_limit_price = None
             self.strategy.initial_sell_limit_price = None
+            self.strategy.initial_buy_stop_price = initial_trade_price
+            self.strategy.initial_sell_stop_price = initial_trade_price
+
         if self.strategy.loop_order_type == 'stop':
-            assert self.strategy.loop_buy_stop_price
-            assert self.strategy.loop_sell_stop_price
             self.strategy.loop_buy_limit_price = None
             self.strategy.loop_sell_limit_price = None
+            self.strategy.loop_buy_stop_price = loop_signal_price + loop_trade_spread
+            self.strategy.loop_sell_stop_price = loop_signal_price - loop_trade_spread
 
-        # For stop limit orders we need all prices.
-        elif self.strategy.initial_order_type == 'stop_limit':
-            assert self.strategy.initial_buy_limit_price
-            assert self.strategy.initial_sell_limit_price
-            assert self.strategy.initial_buy_stop_price
-            assert self.strategy.initial_sell_stop_price
-        elif self.strategy.loop_order_type == 'stop_limit':
-            assert self.strategy.loop_buy_limit_price
-            assert self.strategy.loop_sell_limit_price
-            assert self.strategy.loop_buy_stop_price
-            assert self.strategy.loop_sell_stop_price
+        if self.strategy.initial_order_type == 'stop_limit':
+            self.strategy.initial_buy_limit_price = initial_trade_price
+            self.strategy.initial_sell_limit_price = initial_trade_price
+            self.strategy.initial_buy_stop_price = initial_limit_spread
+            self.strategy.initial_sell_stop_price = initial_limit_spread
+
+        if self.strategy.loop_order_type == 'stop_limit':
+            self.strategy.loop_buy_limit_price = loop_signal_price + loop_trade_spread
+            self.strategy.loop_sell_limit_price = loop_signal_price - loop_trade_spread
+            self.strategy.loop_buy_stop_price = loop_signal_price + loop_limit_spread
+            self.strategy.loop_sell_stop_price = loop_signal_price - loop_limit_spread
