@@ -5,6 +5,7 @@ https://docs.alpaca.markets/api-documentation/api-v2/
 https://github.com/alpacahq/alpaca-trade-api-python
 '''
 import time
+import uuid
 import config
 import logging
 import strategy
@@ -179,7 +180,8 @@ class Trader:
                 'type': self.strategy.initial_order_type,
                 'time_in_force': self.strategy.time_in_force,
                 'limit_price': limit_price,
-                'stop_price': stop_price}
+                'stop_price': stop_price,
+                'client_order_id' : self._generate_order_id('initial')}
 
             # Create the first order.
             self.log.info('Creating the first order: {}'.format(order_parameters))
@@ -197,7 +199,8 @@ class Trader:
 
             # If the order is filled we will place new one.
             if last_order['status'] == 'filled':
-                self.log.info('The last order was filled.')
+                # Log the order data.
+                self._log_order_status(last_order)
 
                 # Check which set of order prices we should use.
                 if self.state['next_order_side'] == 'buy':
@@ -215,7 +218,8 @@ class Trader:
                     'type': self.strategy.loop_order_type,
                     'time_in_force': self.strategy.time_in_force,
                     'limit_price': limit_price,
-                    'stop_price': stop_price}
+                    'stop_price': stop_price,
+                    'client_order_id' : self._generate_order_id('loop')}
 
                 # Create the order.
                 self.log.info('Creating order: {}'.format(order_parameters))
@@ -281,3 +285,30 @@ class Trader:
             self.strategy.loop_sell_limit_price = loop_signal_price - loop_trade_spread
             self.strategy.loop_buy_stop_price = loop_signal_price + loop_limit_spread
             self.strategy.loop_sell_stop_price = loop_signal_price - loop_limit_spread
+
+    def _generate_order_id(self, prefix):
+        '''
+        Generate unique client order name. The max length of client order id is 48.
+        '''
+        order_id = '{}-{}'.format(prefix, uuid.uuid4().hex)
+        return order_id[:48]
+
+    def _log_order_status(self, order):
+        '''
+        Log data about given order.
+        Note: This method relies on the client order id being prefixed by
+        either "initial" or "loop", otherwise it will log the order type as
+        "general" which should be avoided as it will make the log less helpful.
+        '''
+        if 'initial' in order['client_order_id']:
+            order_type = 'initial'
+        elif 'loop' in order['client_order_id']:
+            order_type = 'loop'
+        else:
+            order_type = 'general'
+
+        self.log.info(
+            'The last {} {} order was filled at: {}'.format(
+            order_type,
+            order['side'],
+            order['filled_avg_price']))
