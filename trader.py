@@ -10,6 +10,7 @@ import config
 import logging
 import strategy
 import traceback
+import email_sender
 import alpaca_trade_api as tradeapi
 from alpaca_trade_api.rest import APIError as APIError
 
@@ -29,8 +30,10 @@ class Trader:
         # it is running for the first time by checking its truth value.
         self.state = {}
 
-        # The strategy module will be always available.
+        # The strategy and config modules will be always available.
         self.strategy = strategy
+        self.config = config
+
         # Make sure that the strategy is safe.
         self._make_strategy_safe()
 
@@ -59,6 +62,12 @@ class Trader:
             console_log=config.console_log,
             log_file=config.log_file)
 
+        # Setup email sending.
+        if config.enable_email_monitoring:
+            # Set the last_email_timestamp to current time.
+            self.last_email_timestamp = time.time()
+            self.email_sender = email_sender.EmailSender(config.sendgrid_api_key)
+
     def set_logger(self, level, console_log, log_file):
         '''
         Setup the logging.
@@ -82,7 +91,9 @@ class Trader:
         If there is no position we will get APIError and will return None
         '''
         try:
-            return self.client.get_position(self.symbol)
+            position = self.client.get_position(self.symbol)
+            self.log.debug('Fetched position: {}'.format(position._raw))
+            return position._raw
         except APIError:
             return None
 
@@ -154,6 +165,46 @@ class Trader:
         self.log.debug('Fetched order: {}'.format(order._raw))
         return order._raw
 
+    def get_orders(self, status='all'):
+        '''
+        Get a list of all orders.
+
+        Arguments:
+        status (str) : open, closed or all
+
+        Returns: Dict
+        '''
+        orders = self.client.list_orders(status=status)
+        self.log.debug('Fetched orders: {}'.format(orders))
+        return orders
+
+    def get_account(self):
+        '''
+        Get the account information.
+        Example:
+        {
+        "asset_id": "904837e3-3b76-47ec-b432-046db621571b",
+        "symbol": "AAPL",
+        "exchange": "NASDAQ",
+        "asset_class": "us_equity",
+        "avg_entry_price": "100.0",
+        "qty": "5",
+        "side": "long",
+        "market_value": "600.0",
+        "cost_basis": "500.0",
+        "unrealized_pl": "100.0",
+        "unrealized_plpc": "0.20",
+        "unrealized_intraday_pl": "10.0",
+        "unrealized_intraday_plpc": "0.0084",
+        "current_price": "120.0",
+        "lastday_price": "119.0",
+        "change_today": "0.0084"
+        }
+        '''
+        account = self.client.get_account()
+        self.log.debug('Fetched account: {}'.format(account._raw))
+        return account._raw
+
     def _loop(self):
         '''
         The main loop of Trader. Implement all trading logic here.
@@ -196,6 +247,10 @@ class Trader:
             # Get the order data of the last order.
             last_order_id = self.state['last_order_id']
             last_order = self.get_order(last_order_id)
+
+            # Send email if monitoring is enabled.
+            if self.config.enable_email_monitoring:
+                self._send_status_email(last_order)
 
             # If the order is filled we will place new one.
             if last_order['status'] == 'filled':
@@ -312,3 +367,63 @@ class Trader:
             order_type,
             order['side'],
             order['filled_avg_price']))
+
+    def _send_status_email(self, order):
+        '''
+        Compare the timestamp of the last send email and it is more than
+        the desired frequency send new email.
+        '''
+
+        # The time difference is current time minus last email time in seconds.
+        time_diff = time.time() - self.last_email_timestamp
+
+        # We need to convert the email frequency to monutes by multiplying it with
+        # 60 because the time difference we are going to compare it with is in seconds
+        # while the email_monitoring_frequency is intended to represent minutes.
+        email_frequency_in_minutes = self.config.email_monitoring_frequency * 1
+
+        if time_diff >= email_frequency_in_minutes:
+            subject = 'Trader status update.'
+
+            message = '''
+            Current active order:<br>
+            Symbol: {symbol}<br>
+            Type: {type}<br>
+            Side: {side}<br>
+            Quantity: {quantity}<br>
+            Created at: {created_at}<br>
+            Status: {status}<br>
+            Filled at: {filled_at}<br>
+            <br>
+            Number of open orders: {open_orders}<br>
+            <br>
+            Position size: {position}<br>
+            Balance: {balance}<br>
+            '''
+
+            position = self.get_position()
+            account = self.get_account()
+            open_orders = self.get_orders(status='open')
+
+            # Add variables to the message template.
+            message = message.format(
+                symbol=order['symbol'],
+                type=order['type'],
+                side=order['side'],
+                quantity=order['qty'],
+                created_at=order['created_at'],
+                status=order['status'],
+                filled_at=order['filled_at'],
+                open_orders=len(open_orders),
+                position=position,
+                balance=account['cash'])
+
+            # Send the email.
+            self.email_sender.send(
+                from_email=self.config.email_monitoring_sending_email,
+                to_email=self.config.email_monitoring_receiving_email,
+                subject=subject,
+                message=message)
+
+            # Update the last email timestamp.
+            self.last_email_timestamp = time.time()

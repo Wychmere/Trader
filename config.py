@@ -26,3 +26,18 @@ sleep_after_error = 1
 # Note that the API rate limit is 200 calls per minute, which means that we can make
 # approximately 3 calls per second. Therefore the minimal safe value for update_time is 0.3
 update_time = 1
+
+# Enable/disable email monitoring.
+enable_email_monitoring = True
+
+# The Sendgrid API key used for email monitoring.
+sendgrid_api_key = ''
+
+# The sending email address used for email monitoring.
+email_monitoring_sending_email = 'trader@trader.io'
+
+# The receiving email address used for email monitoring.
+email_monitoring_receiving_email = ''
+
+# The frequency (in minutes) at which to send monitoring emails.
+email_monitoring_frequency = 1
