@@ -380,7 +380,7 @@ class Trader:
         # We need to convert the email frequency to monutes by multiplying it with
         # 60 because the time difference we are going to compare it with is in seconds
         # while the email_monitoring_frequency is intended to represent minutes.
-        email_frequency_in_minutes = self.config.email_monitoring_frequency * 1
+        email_frequency_in_minutes = self.config.email_monitoring_frequency * 60
 
         if time_diff >= email_frequency_in_minutes:
             subject = 'Trader status update.'

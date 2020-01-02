@@ -28,7 +28,7 @@ sleep_after_error = 1
 update_time = 1
 
 # Enable/disable email monitoring.
-enable_email_monitoring = True
+enable_email_monitoring = False
 
 # The Sendgrid API key used for email monitoring.
 sendgrid_api_key = ''
