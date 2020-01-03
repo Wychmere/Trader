@@ -137,7 +137,7 @@ class Trader:
                 time.sleep(self.update_time)
             # Creating of new order failed.
             except OrderRejectedError:
-                if self.retry_order_creation >= 0:
+                if self.retry_order_creation > 0:
                     self.retry_order_creation -= 1
                     # By clearing the state dict we restart the strategy.
                     self.state = {}
