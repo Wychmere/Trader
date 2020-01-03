@@ -27,8 +27,9 @@ sleep_after_error = 1
 # approximately 3 calls per second. Therefore the minimal safe value for update_time is 0.3
 update_time = 1
 
-# Enable/disable email monitoring.
-enable_email_monitoring = False
+# The number of retries if the attempt to create new order gets rejected. After the number of
+# retries is reached Trader will terminate itself.
+retry_order_creation = 2
 
 # The Sendgrid API key used for email monitoring.
 sendgrid_api_key = ''
@@ -38,6 +39,3 @@ email_monitoring_sending_email = 'trader@trader.io'
 
 # The receiving email address used for email monitoring.
 email_monitoring_receiving_email = ''
-
-# The frequency (in minutes) at which to send monitoring emails.
-email_monitoring_frequency = 1

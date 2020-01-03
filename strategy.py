@@ -20,3 +20,9 @@ loop_limit_spread = 2
 
 # Valid values for time_in_force: day, gtc, opg, cls, ioc, fok
 time_in_force = 'gtc'
+
+# Enable/disable email monitoring.
+enable_email_monitoring = True
+
+# The frequency (in minutes) at which to send monitoring emails.
+email_monitoring_frequency = 1

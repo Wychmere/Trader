@@ -14,6 +14,13 @@ import email_sender
 import alpaca_trade_api as tradeapi
 from alpaca_trade_api.rest import APIError as APIError
 
+
+class OrderRejectedError(Exception):
+    '''
+    This exception is raised when order placing fails with APIError.
+    '''
+    pass
+
 class Trader:
     '''
     The trander handles communication with the Alpaca API.
@@ -43,6 +50,9 @@ class Trader:
         self.update_time = config.update_time
         self.sleep_after_error = config.sleep_after_error
 
+        # The number of retries if the order creation fails.
+        self.retry_order_creation = config.retry_order_creation
+
         # Set the base url.
         if config.use_sandbox:
             base_url = 'https://paper-api.alpaca.markets'
@@ -63,7 +73,7 @@ class Trader:
             log_file=config.log_file)
 
         # Setup email sending.
-        if config.enable_email_monitoring:
+        if strategy.enable_email_monitoring:
             # Set the last_email_timestamp to current time.
             self.last_email_timestamp = time.time()
             self.email_sender = email_sender.EmailSender(config.sendgrid_api_key)
@@ -125,11 +135,21 @@ class Trader:
             try:
                 self._loop()
                 time.sleep(self.update_time)
+            # Creating of new order failed.
+            except OrderRejectedError:
+                if self.retry_order_creation >= 0:
+                    self.retry_order_creation -= 1
+                    # By clearing the state dict we restart the strategy.
+                    self.state = {}
+                    self.log.warning(
+                        'Order creation failed. Retying in {} seconds.'.format(
+                            self.sleep_after_error))
+                    time.sleep(self.sleep_after_error)
+                else:
+                    self._terminate(reason='Max order creation retries reached.')
             # Kayboard interupts can terminate the run.
             except KeyboardInterrupt:
-                self.log.info('Canceling all orders and terminating.')
-                self.client.cancel_all_orders()
-                return 0
+                self._terminate(reason='User interruption.')
             # Any other error will be ignored.
             except:
                 self.log.warning('The main loop failed. {}'.format(
@@ -148,9 +168,16 @@ class Trader:
 
         Returns: Dict
         '''
-        order = self.client.submit_order(**parameters)
-        self.log.debug('Created order: {}'.format(order._raw))
-        return order._raw
+        try:
+            order = self.client.submit_order(**parameters)
+            self.log.debug('Created order: {}'.format(order._raw))
+            return order._raw
+        except APIError as err:
+            # API errors during order placement will be treated as
+            # rejected orders and will raise OrderRejectedError that
+            # is handled by the run_forever method.
+            self.log.error('API error during order creation: {}'.format(err._error))
+            raise OrderRejectedError('Creating order failed.')
 
     def get_order(self, order_id):
         '''
@@ -235,8 +262,9 @@ class Trader:
                 'client_order_id' : self._generate_order_id('initial')}
 
             # Create the first order.
-            self.log.info('Creating the first order: {}'.format(order_parameters))
+            self.log.info('Created initial order: {}'.format(order_parameters))
             order = self.submit_order(order_parameters)
+            self.log.info('Order status: {}'.format(order['status']))
 
             # Keep track of the order id and next order side.
             self.state['last_order_id'] = order['id']
@@ -249,7 +277,7 @@ class Trader:
             last_order = self.get_order(last_order_id)
 
             # Send email if monitoring is enabled.
-            if self.config.enable_email_monitoring:
+            if self.strategy.enable_email_monitoring:
                 self._send_status_email(last_order)
 
             # If the order is filled we will place new one.
@@ -277,8 +305,9 @@ class Trader:
                     'client_order_id' : self._generate_order_id('loop')}
 
                 # Create the order.
-                self.log.info('Creating order: {}'.format(order_parameters))
+                self.log.info('Creating loop order: {}'.format(order_parameters))
                 order = self.submit_order(order_parameters)
+                self.log.info('Order status: {}'.format(order['status']))
 
                 # Keep track of the order id and next order side.
                 self.state['last_order_id'] = order['id']
@@ -380,7 +409,7 @@ class Trader:
         # We need to convert the email frequency to monutes by multiplying it with
         # 60 because the time difference we are going to compare it with is in seconds
         # while the email_monitoring_frequency is intended to represent minutes.
-        email_frequency_in_minutes = self.config.email_monitoring_frequency * 60
+        email_frequency_in_minutes = self.strategy.email_monitoring_frequency * 60
 
         if time_diff >= email_frequency_in_minutes:
             subject = 'Trader status update.'
@@ -396,13 +425,8 @@ class Trader:
             Filled at: {filled_at}<br>
             <br>
             Number of open orders: {open_orders}<br>
-            <br>
-            Position size: {position}<br>
-            Balance: {balance}<br>
             '''
 
-            position = self.get_position()
-            account = self.get_account()
             open_orders = self.get_orders(status='open')
 
             # Add variables to the message template.
@@ -414,9 +438,7 @@ class Trader:
                 created_at=order['created_at'],
                 status=order['status'],
                 filled_at=order['filled_at'],
-                open_orders=len(open_orders),
-                position=position,
-                balance=account['cash'])
+                open_orders=len(open_orders))
 
             # Send the email.
             self.email_sender.send(
@@ -427,3 +449,16 @@ class Trader:
 
             # Update the last email timestamp.
             self.last_email_timestamp = time.time()
+
+    def _terminate(self, reason=None):
+        '''
+        Cancel all orders and terminate the system.
+
+        Arguments:
+        reason (str) : The reason for the termination.
+        '''
+        if reason:
+            self.log.info(reason)
+        self.log.info('Canceling all orders and terminating.')
+        self.client.cancel_all_orders()
+        raise SystemExit
