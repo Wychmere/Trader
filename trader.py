@@ -146,7 +146,10 @@ class Trader:
                             self.sleep_after_error))
                     time.sleep(self.sleep_after_error)
                 else:
-                    self._terminate(reason='Max order creation retries reached.')
+                    termination_reason = 'Max order creation retries reached.'
+                    if self.strategy.enable_email_monitoring:
+                        self._send_termination_alert(reason=termination_reason)
+                    self._terminate(reason=termination_reason)
             # Kayboard interupts can terminate the run.
             except KeyboardInterrupt:
                 self._terminate(reason='User interruption.')
@@ -415,6 +418,7 @@ class Trader:
             subject = 'Trader status update.'
 
             message = '''
+            System status alert<br><br>
             Current active order:<br>
             Symbol: {symbol}<br>
             Type: {type}<br>
@@ -424,10 +428,30 @@ class Trader:
             Status: {status}<br>
             Filled at: {filled_at}<br>
             <br>
+            Loop limit price: {loop_limit_price}<br>
+            Loop stop price: {loop_stop_price}<br>
             Number of open orders: {open_orders}<br>
+            <br>
+            Open position: {position_symbol}: {position_size}<br>
             '''
 
             open_orders = self.get_orders(status='open')
+
+            # Check which set of order prices we will use.
+            if self.state['next_order_side'] == 'buy':
+                loop_limit_price = self.strategy.loop_buy_limit_price
+                loop_stop_price = self.strategy.loop_buy_stop_price
+            elif self.state['next_order_side'] == 'sell':
+                loop_limit_price = self.strategy.loop_sell_limit_price
+                loop_stop_price = self.strategy.loop_sell_stop_price
+
+            # Get the current open position size. If there is no open position for the symbol
+            # the get_position function will return None. In this case we set position_size to 0.
+            position = self.get_position()
+            if position:
+                position_size = position['qty']
+            else:
+                position_size = 0
 
             # Add variables to the message template.
             message = message.format(
@@ -437,8 +461,12 @@ class Trader:
                 quantity=order['qty'],
                 created_at=order['created_at'],
                 status=order['status'],
+                loop_limit_price=loop_limit_price,
+                loop_stop_price=loop_stop_price,
                 filled_at=order['filled_at'],
-                open_orders=len(open_orders))
+                open_orders=len(open_orders),
+                position_symbol=self.symbol,
+                position_size=position_size)
 
             # Send the email.
             self.email_sender.send(
@@ -449,6 +477,23 @@ class Trader:
 
             # Update the last email timestamp.
             self.last_email_timestamp = time.time()
+
+    def _send_termination_alert(self, reason):
+        '''
+        Called when the system is terminating.
+        '''
+        subject = 'Trader terminated.'
+        message = '''
+        The system has terminated.<br>
+        Reason: {reason}
+        '''
+        message = message.format(reason=reason)
+
+        self.email_sender.send(
+            from_email=self.config.email_monitoring_sending_email,
+            to_email=self.config.email_monitoring_receiving_email,
+            subject=subject,
+            message=message)
 
     def _terminate(self, reason=None):
         '''
