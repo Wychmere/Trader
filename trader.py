@@ -414,25 +414,23 @@ class Trader:
         # while the email_monitoring_frequency is intended to represent minutes.
         email_frequency_in_minutes = self.strategy.email_monitoring_frequency * 60
 
-        if time_diff >= email_frequency_in_minutes:
-            subject = 'Trader status update.'
+        # Initially we will assume the subject is normal statis update and
+        # it should not be send immediately.
+        send_immediately = False
+        subject = 'Status update'
 
+        # If the last order was filled we want to send immediate alert.
+        if order['status']== 'filled':
+            send_immediately = True
+        if order['status'] == 'rejected':
+            subject = 'Rejected order'
+            send_immediately = True
+
+        if (time_diff >= email_frequency_in_minutes) or send_immediately:
             message = '''
-            System status alert<br><br>
-            Current active order:<br>
-            Symbol: {symbol}<br>
-            Type: {type}<br>
-            Side: {side}<br>
-            Quantity: {quantity}<br>
-            Created at: {created_at}<br>
-            Status: {status}<br>
-            Filled at: {filled_at}<br>
-            <br>
-            Loop limit price: {loop_limit_price}<br>
-            Loop stop price: {loop_stop_price}<br>
-            Number of open orders: {open_orders}<br>
-            <br>
-            Open position: {position_symbol}: {position_size}<br>
+            Open Position: {position_size} {position_symbol} <br>
+            Active Order: {side} {quantity} {symbol} {price} <br>
+            Order Status: {status}
             '''
 
             open_orders = self.get_orders(status='open')
@@ -455,16 +453,11 @@ class Trader:
 
             # Add variables to the message template.
             message = message.format(
+                price=loop_limit_price,
                 symbol=order['symbol'],
-                type=order['type'],
                 side=order['side'],
                 quantity=order['qty'],
-                created_at=order['created_at'],
                 status=order['status'],
-                loop_limit_price=loop_limit_price,
-                loop_stop_price=loop_stop_price,
-                filled_at=order['filled_at'],
-                open_orders=len(open_orders),
                 position_symbol=self.symbol,
                 position_size=position_size)
 
@@ -482,7 +475,7 @@ class Trader:
         '''
         Called when the system is terminating.
         '''
-        subject = 'Trader terminated.'
+        subject = 'Terminating'
         message = '''
         The system has terminated.<br>
         Reason: {reason}
