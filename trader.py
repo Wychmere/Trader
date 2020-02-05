@@ -148,7 +148,8 @@ class Trader:
                 else:
                     termination_reason = 'Max order creation retries reached.'
                     if self.strategy.enable_email_monitoring:
-                        self._send_termination_alert(reason=termination_reason)
+                        response = self._send_termination_alert(reason=termination_reason)
+                        self.log.info(response)
                     self._terminate(reason=termination_reason)
             # Kayboard interupts can terminate the run.
             except KeyboardInterrupt:
@@ -482,11 +483,12 @@ class Trader:
         '''
         message = message.format(reason=reason)
 
-        self.email_sender.send(
+        result = self.email_sender.send(
             from_email=self.config.email_monitoring_sending_email,
             to_email=self.config.email_monitoring_receiving_email,
             subject=subject,
             message=message)
+        return result
 
     def _terminate(self, reason=None):
         '''

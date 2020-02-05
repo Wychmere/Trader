@@ -12,7 +12,7 @@ class EmailSender:
     def __init__(self, api_key):
         self.client = SendGridAPIClient(api_key)
 
-    def send(self, from_email, to_email, subject, message):
+    def send(self, from_email, to_email, subject, message, retry=3):
         '''
         Send email.
 
@@ -21,11 +21,23 @@ class EmailSender:
         to_email (str) : The receiving email address.
         subject (str) : The subject line.
         message (str) : The body of the email.
+
+        Returns:
+        On success: 'Email sent.'
+        On error: The exception message.
         '''
-        email_data = Mail(
-            from_email=from_email,
-            to_emails=to_email,
-            subject=subject,
-            html_content='<p>{}</p>'.format(message))
-        response = self.client.send(email_data)
-        return response
+        error = None
+        result = None
+        while retry >= 0:
+            try:
+                email_data = Mail(
+                    from_email=from_email,
+                    to_emails=to_email,
+                    subject=subject,
+                    html_content='<p>{}</p>'.format(message))
+                self.client.send(email_data)
+                result = 'Email sent.'
+            except Exception as ex:
+                retry -= 1
+                error = ex
+        return result if result else error
