@@ -37,6 +37,7 @@ class EmailSender:
                     html_content='<p>{}</p>'.format(message))
                 self.client.send(email_data)
                 result = 'Email sent.'
+                break
             except Exception as ex:
                 retry -= 1
                 error = ex
