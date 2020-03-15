@@ -31,6 +31,9 @@ update_time = 1
 # retries is reached Trader will terminate itself.
 retry_order_creation = 2
 
+# After sending an order to the exchange Trader will check its status after that amount of seconds.
+order_status_check_delay = 3
+
 # The Sendgrid API key used for email monitoring.
 sendgrid_api_key = ''
 

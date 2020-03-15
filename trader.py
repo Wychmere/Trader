@@ -53,6 +53,8 @@ class Trader:
         # The number of retries if the order creation fails.
         self.retry_order_creation = config.retry_order_creation
 
+        self.order_status_check_delay = config.order_status_check_delay
+
         # Set the base url.
         if config.use_sandbox:
             base_url = 'https://paper-api.alpaca.markets'
@@ -170,18 +172,15 @@ class Trader:
         Docs:
         https://docs.alpaca.markets/api-documentation/api-v2/orders/
 
-        Returns: Dict
+        Returns: Dict on success and None on error.
         '''
         try:
             order = self.client.submit_order(**parameters)
             self.log.debug('Created order: {}'.format(order._raw))
             return order._raw
         except APIError as err:
-            # API errors during order placement will be treated as
-            # rejected orders and will raise OrderRejectedError that
-            # is handled by the run_forever method.
             self.log.error('API error during order creation: {}'.format(err._error))
-            raise OrderRejectedError('Creating order failed.')
+            return None
 
     def get_order(self, order_id):
         '''
@@ -268,6 +267,14 @@ class Trader:
             # Create the first order.
             self.log.info('Created initial order: {}'.format(order_parameters))
             order = self.submit_order(order_parameters)
+
+            # Any error during order submission will be treated as order rejection and
+            # will raise OrderRejectedError that is handled by the run_forever method.
+            if not order:
+                raise OrderRejectedError('Creating order failed.')
+            else:
+                self.retry_order_creation = self.config.retry_order_creation
+
             self.log.info('Order status: {}'.format(order['status']))
 
             # Keep track of the order id and next order side.
@@ -293,9 +300,13 @@ class Trader:
                 if self.state['next_order_side'] == 'buy':
                     limit_price = self.strategy.loop_buy_limit_price
                     stop_price = self.strategy.loop_buy_stop_price
+                    jump_limit_price = self.strategy.jump_buy_limit_price
+                    jump_stop_price = self.strategy.jump_buy_stop_price
                 elif self.state['next_order_side'] == 'sell':
                     limit_price = self.strategy.loop_sell_limit_price
                     stop_price = self.strategy.loop_sell_stop_price
+                    jump_limit_price = self.strategy.jump_sell_limit_price
+                    jump_stop_price = self.strategy.jump_sell_stop_price
 
                 # Generate the order parameters.
                 order_parameters = {
@@ -308,9 +319,49 @@ class Trader:
                     'stop_price': stop_price,
                     'client_order_id' : self._generate_order_id('loop')}
 
-                # Create the order.
+                # Try to create the order.
                 self.log.info('Creating loop order: {}'.format(order_parameters))
-                order = self.submit_order(order_parameters)
+                while self.retry_order_creation > 0:
+                    order = self.submit_order(order_parameters)
+                    if order:
+                        time.sleep(self.order_status_check_delay)
+                        order = self.get_order(order['id'])
+                        if order['status'] != 'rejected':
+                            self.retry_order_creation = self.config.retry_order_creation
+                            break
+                        else:
+                            self.log.info('The loop order was rejected: {}'.format(order))
+                    self.log.info('Creating loop order failed. Retries left: {}'.format(retry_order_creation))
+                    self.retry_order_creation -= 1
+
+                # If order creation failed <retry_order_creation> times we will try to use the jump order price.
+                if not order:
+                    self.retry_order_creation = self.config.retry_order_creation
+                    order_parameters.update({
+                        'limit_price': jump_limit_price,
+                        'stop_price': jump_stop_price,
+                        'client_order_id': self._generate_order_id('loop')})
+                    while self.retry_order_creation > 0:
+                        order = self.submit_order(order_parameters)
+                        if order:
+                            time.sleep(self.order_status_check_delay)
+                            order = self.get_order(order['id'])
+                            if order['status'] != 'rejected':
+                                self.retry_order_creation = self.config.retry_order_creation
+                                break
+                            else:
+                                self.log.info('The loop jump order was rejected: {}'.format(order))
+                        self.log.info('Creating loop jump order failed. Retries left: {}'.format(retry_order_creation))
+                        self.retry_order_creation -= 1
+
+                # If order creation failed after all attempts terminate Trader.
+                if not order:
+                    termination_reason = 'Creating loop order failed after {} retries.'.format(self.retry_order_creation*2)
+                    if self.strategy.enable_email_monitoring:
+                        response = self._send_termination_alert(reason=termination_reason)
+                        self.log.info(response)
+                    self._terminate(reason=termination_reason)
+
                 self.log.info('Order status: {}'.format(order['status']))
 
                 # Keep track of the order id and next order side.
@@ -327,6 +378,8 @@ class Trader:
         loop_signal_price = self.strategy.loop_signal_price
         loop_trade_spread = self.strategy.loop_trade_spread
         loop_limit_spread = self.strategy.loop_limit_spread
+        jump_trade_spread = self.strategy.jump_trade_spread
+        jump_limit_spread = self.strategy.jump_limit_spread
 
         # We can't have market loop orders.
         assert self.strategy.loop_order_type != 'market'
@@ -349,6 +402,10 @@ class Trader:
             self.strategy.loop_sell_limit_price = loop_signal_price - loop_trade_spread - loop_limit_spread
             self.strategy.loop_buy_stop_price = None
             self.strategy.loop_sell_stop_price = None
+            self.strategy.jump_buy_limit_price = loop_signal_price + jump_trade_spread + jump_limit_spread
+            self.strategy.jump_sell_limit_price = loop_signal_price - jump_trade_spread - jump_limit_spread
+            self.strategy.jump_buy_stop_price = None
+            self.strategy.jump_sell_stop_price = None
 
         if self.strategy.initial_order_type == 'stop':
             self.strategy.initial_buy_limit_price = None
@@ -361,6 +418,10 @@ class Trader:
             self.strategy.loop_sell_limit_price = None
             self.strategy.loop_buy_stop_price = loop_signal_price + loop_trade_spread
             self.strategy.loop_sell_stop_price = loop_signal_price - loop_trade_spread
+            self.strategy.jump_buy_limit_price = None
+            self.strategy.jump_sell_limit_price = None
+            self.strategy.jump_buy_stop_price = loop_signal_price + jump_trade_spread
+            self.strategy.jump_sell_stop_price = loop_signal_price - jump_trade_spread
 
         if self.strategy.initial_order_type == 'stop_limit':
             self.strategy.initial_buy_limit_price = initial_trade_price
@@ -373,6 +434,11 @@ class Trader:
             self.strategy.loop_sell_limit_price = loop_signal_price - loop_trade_spread
             self.strategy.loop_buy_stop_price = loop_signal_price + loop_limit_spread
             self.strategy.loop_sell_stop_price = loop_signal_price - loop_limit_spread
+#
+            self.strategy.jump_buy_limit_price = loop_signal_price + jump_trade_spread
+            self.strategy.jump_sell_limit_price = loop_signal_price - jump_trade_spread
+            self.strategy.jump_buy_stop_price = loop_signal_price + jump_limit_spread
+            self.strategy.jump_sell_stop_price = loop_signal_price - jump_limit_spread
 
     def _generate_order_id(self, prefix):
         '''

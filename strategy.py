@@ -18,6 +18,10 @@ loop_signal_price = 220
 loop_trade_spread = 2
 loop_limit_spread = 2
 
+# The jump spreads will be used if the order is rejected with the loop spread.
+jump_trade_spread = 4
+jump_limit_spread = 4
+
 # Valid values for time_in_force: day, gtc, opg, cls, ioc, fok
 time_in_force = 'gtc'
 
