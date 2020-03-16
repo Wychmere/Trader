@@ -426,19 +426,19 @@ class Trader:
         if self.strategy.initial_order_type == 'stop_limit':
             self.strategy.initial_buy_limit_price = initial_trade_price
             self.strategy.initial_sell_limit_price = initial_trade_price
-            self.strategy.initial_buy_stop_price = initial_limit_spread
-            self.strategy.initial_sell_stop_price = initial_limit_spread
+            self.strategy.initial_buy_stop_price = self.strategy.initial_buy_limit_price + initial_limit_spread
+            self.strategy.initial_sell_stop_price = self.strategy.initial_buy_limit_price - initial_limit_spread
 
         if self.strategy.loop_order_type == 'stop_limit':
             self.strategy.loop_buy_limit_price = loop_signal_price + loop_trade_spread
             self.strategy.loop_sell_limit_price = loop_signal_price - loop_trade_spread
-            self.strategy.loop_buy_stop_price = loop_signal_price + loop_limit_spread
-            self.strategy.loop_sell_stop_price = loop_signal_price - loop_limit_spread
+            self.strategy.loop_buy_stop_price = self.strategy.loop_buy_limit_price + loop_limit_spread
+            self.strategy.loop_sell_stop_price = self.strategy.loop_sell_limit_price - loop_limit_spread
 #
             self.strategy.jump_buy_limit_price = loop_signal_price + jump_trade_spread
             self.strategy.jump_sell_limit_price = loop_signal_price - jump_trade_spread
-            self.strategy.jump_buy_stop_price = loop_signal_price + jump_limit_spread
-            self.strategy.jump_sell_stop_price = loop_signal_price - jump_limit_spread
+            self.strategy.jump_buy_stop_price = self.strategy.jump_buy_limit_price + jump_limit_spread
+            self.strategy.jump_sell_stop_price = self.strategy.jump_sell_limit_price - jump_limit_spread
 
     def _generate_order_id(self, prefix):
         '''
