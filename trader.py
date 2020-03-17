@@ -331,7 +331,7 @@ class Trader:
                             break
                         else:
                             self.log.info('The loop order was rejected: {}'.format(order))
-                    self.log.info('Creating loop order failed. Retries left: {}'.format(retry_order_creation))
+                    self.log.info('Creating loop order failed. Retries left: {}'.format(self.retry_order_creation))
                     self.retry_order_creation -= 1
 
                 # If order creation failed <retry_order_creation> times we will try to use the jump order price.
@@ -351,7 +351,7 @@ class Trader:
                                 break
                             else:
                                 self.log.info('The loop jump order was rejected: {}'.format(order))
-                        self.log.info('Creating loop jump order failed. Retries left: {}'.format(retry_order_creation))
+                        self.log.info('Creating loop jump order failed. Retries left: {}'.format(self.retry_order_creation))
                         self.retry_order_creation -= 1
 
                 # If order creation failed after all attempts terminate Trader.
@@ -433,12 +433,12 @@ class Trader:
             self.strategy.loop_buy_stop_price = loop_signal_price + loop_trade_spread
             self.strategy.loop_sell_stop_price = loop_signal_price - loop_trade_spread
             self.strategy.loop_buy_limit_price = self.strategy.loop_buy_stop_price + loop_limit_spread
-            self.strategy.loop_sell_limit_price = self.strategy.loop_buy_stop_price - loop_limit_spread
+            self.strategy.loop_sell_limit_price = self.strategy.loop_sell_stop_price - loop_limit_spread
 
             self.strategy.jump_buy_stop_price = loop_signal_price + jump_trade_spread
             self.strategy.jump_sell_stop_price = loop_signal_price - jump_trade_spread
             self.strategy.jump_buy_limit_price = self.strategy.jump_buy_stop_price + jump_limit_spread
-            self.strategy.jump_sell_limit_price = self.strategy.jump_buy_stop_price - jump_limit_spread
+            self.strategy.jump_sell_limit_price = self.strategy.jump_sell_stop_price - jump_limit_spread
 
     def _generate_order_id(self, prefix):
         '''
