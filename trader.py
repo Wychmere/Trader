@@ -156,6 +156,9 @@ class Trader:
             # Kayboard interupts can terminate the run.
             except KeyboardInterrupt:
                 self._terminate(reason='User interruption.')
+            # Explicit system exit.
+            except SystemExit:
+                raise SystemExit
             # Any other error will be ignored.
             except:
                 self.log.warning('The main loop failed. {}'.format(
@@ -332,6 +335,7 @@ class Trader:
                         else:
                             self.log.info('The loop order was rejected: {}'.format(order))
                     self.log.info('Creating loop order failed. Retries left: {}'.format(self.retry_order_creation))
+                    order_parameters['client_order_id'] = self._generate_order_id('loop')
                     self.retry_order_creation -= 1
 
                 # If order creation failed <retry_order_creation> times we will try to use the jump order price.
@@ -352,6 +356,7 @@ class Trader:
                             else:
                                 self.log.info('The loop jump order was rejected: {}'.format(order))
                         self.log.info('Creating loop jump order failed. Retries left: {}'.format(self.retry_order_creation))
+                        order_parameters['client_order_id'] = self._generate_order_id('loop')
                         self.retry_order_creation -= 1
 
                 # If order creation failed after all attempts terminate Trader.
