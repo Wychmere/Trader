@@ -339,7 +339,7 @@ class Trader:
                     self.retry_order_creation -= 1
 
                 # If order creation failed <retry_order_creation> times we will try to use the jump order price.
-                if not order:
+                if not order or order['status'] == 'rejected':
                     self.retry_order_creation = self.config.retry_order_creation
                     order_parameters.update({
                         'limit_price': jump_limit_price,
