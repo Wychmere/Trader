@@ -306,8 +306,18 @@ class Trader:
             if self.strategy.enable_email_monitoring:
                 self._send_status_email(last_order)
 
+            # Terminate if running in OCO mode and the take profit order is filled.
+            if self.strategy.oco_loop_order and last_order['client_order_id'].startswith('loop') \
+            and last_order['status'] == 'filled':
+                termination_reason = 'Take profit order from the OCO pair was filled.'
+                if self.strategy.enable_email_monitoring:
+                    response = self._send_termination_alert(reason=termination_reason)
+                    self.log.info(response)
+                self._terminate(reason=termination_reason)
+
             # If the order is filled we will place new one.
-            if last_order['status'] == 'filled':
+            if last_order['status'] == 'filled' \
+            or (last_order.get('legs') and last_order['legs'][0]['status'] == 'filled'):
                 # Log the order data.
                 self._log_order_status(last_order)
 
@@ -333,7 +343,7 @@ class Trader:
                         'time_in_force': self.strategy.time_in_force,
                         'order_class': 'oco',
                         'take_profit': {'limit_price': self.strategy.oco_limit_price},
-                        'stop_loss': {'stop_price': stop_price, 'limit_price': limit_price},
+                        'stop_loss': {'stop_price': stop_price},
                         'client_order_id': self._generate_order_id('loop')}
                 else:
                     order_parameters = {
@@ -367,7 +377,7 @@ class Trader:
                     self.retry_order_creation = self.config.retry_order_creation
                     if self.strategy.oco_loop_order:
                         order_parameters.update({
-                            'stop_loss': {'stop_price': jump_stop_price, 'limit_price': jump_limit_price},
+                            'stop_loss': {'stop_price': jump_stop_price},
                             'client_order_id': self._generate_order_id('loop')})
                     else:
                         order_parameters.update({
