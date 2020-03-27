@@ -266,7 +266,7 @@ class Trader:
                     'time_in_force': self.strategy.time_in_force,
                     'order_class': 'oco',
                     'take_profit': {'limit_price': limit_price},
-                    'stop_loss': {'stop_price': stop_price, 'limit_price': limit_price},
+                    'stop_loss': {'stop_price': stop_price},
                     'client_order_id': self._generate_order_id('initial')}
             else:
                 order_parameters = {
