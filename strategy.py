@@ -4,9 +4,12 @@ Variables related to the strategy executed by Trader.
 
 symbol = 'AAPL'
 quantity = 1
-first_order_side = 'buy'
-initial_order_type = 'stop'
+first_order_side = 'sell'
+initial_order_type = 'limit'
 loop_order_type = 'stop'
+
+# Use OCO for the initial order.
+oco_initial_order = True
 
 # TODO add documentation about the usage of price and spread variables.
 # The initial order prices will be used only for the first order.
