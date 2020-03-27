@@ -22,6 +22,10 @@ loop_limit_spread = 2
 jump_trade_spread = 4
 jump_limit_spread = 4
 
+# Use OCO orders for the loop.
+oco_loop_order = True
+oco_limit_price = 300
+
 # Valid values for time_in_force: day, gtc, opg, cls, ioc, fok
 time_in_force = 'gtc'
 

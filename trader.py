@@ -312,15 +312,27 @@ class Trader:
                     jump_stop_price = self.strategy.jump_sell_stop_price
 
                 # Generate the order parameters.
-                order_parameters = {
-                    'symbol': self.symbol,
-                    'qty': self.strategy.quantity,
-                    'side': self.state['next_order_side'],
-                    'type': self.strategy.loop_order_type,
-                    'time_in_force': self.strategy.time_in_force,
-                    'limit_price': limit_price,
-                    'stop_price': stop_price,
-                    'client_order_id' : self._generate_order_id('loop')}
+                if self.strategy.oco_loop_order:
+                    order_parameters = {
+                        'symbol': self.symbol,
+                        'qty': self.strategy.quantity,
+                        'side': self.state['next_order_side'],
+                        'type': 'limit',
+                        'time_in_force': self.strategy.time_in_force,
+                        'order_class': 'oco',
+                        'take_profit': {'limit_price': self.strategy.oco_limit_price},
+                        'stop_loss': {'stop_price': stop_price, 'limit_price': limit_price},
+                        'client_order_id': self._generate_order_id('loop')}
+                else:
+                    order_parameters = {
+                        'symbol': self.symbol,
+                        'qty': self.strategy.quantity,
+                        'side': self.state['next_order_side'],
+                        'type': self.strategy.loop_order_type,
+                        'time_in_force': self.strategy.time_in_force,
+                        'limit_price': limit_price,
+                        'stop_price': stop_price,
+                        'client_order_id' : self._generate_order_id('loop')}
 
                 # Try to create the order.
                 self.log.info('Creating loop order: {}'.format(order_parameters))
@@ -341,10 +353,15 @@ class Trader:
                 # If order creation failed <retry_order_creation> times we will try to use the jump order price.
                 if not order or order['status'] == 'rejected':
                     self.retry_order_creation = self.config.retry_order_creation
-                    order_parameters.update({
-                        'limit_price': jump_limit_price,
-                        'stop_price': jump_stop_price,
-                        'client_order_id': self._generate_order_id('loop')})
+                    if self.strategy.oco_loop_order:
+                        order_parameters.update({
+                            'stop_loss': {'stop_price': jump_stop_price, 'limit_price': jump_limit_price},
+                            'client_order_id': self._generate_order_id('loop')})
+                    else:
+                        order_parameters.update({
+                            'limit_price': jump_limit_price,
+                            'stop_price': jump_stop_price,
+                            'client_order_id': self._generate_order_id('loop')})
                     while self.retry_order_creation > 0:
                         order = self.submit_order(order_parameters)
                         if order:
