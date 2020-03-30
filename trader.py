@@ -307,7 +307,8 @@ class Trader:
                 self._send_status_email(last_order)
 
             # Terminate if running in OCO mode and the take profit order is filled.
-            if self.strategy.oco_loop_order and last_order['status'] == 'filled':
+            if self.strategy.oco_initial_order and last_order['status'] == 'filled' \
+            and last_order['client_order_id'].startswith('initial'):
                 termination_reason = 'Take profit order from the OCO pair was filled.'
                 if self.strategy.enable_email_monitoring:
                     response = self._send_termination_alert(reason=termination_reason)
