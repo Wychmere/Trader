@@ -241,14 +241,24 @@ class Trader:
         self.log.debug('Fetched account: {}'.format(account._raw))
         return account._raw
 
-    def take_profit_oco_filled(self, order):
+    def oco_filled(self, order, leg):
         '''
         Checks if an order is OCO and if so - is the take profit leg filled.
+        Arguments:
+        order (dict) : The order dict.
+        leg (str) : Which order to check. 'stop_loss' or 'take_profit'
         '''
         if not order.get('legs'):
             return False
-        if order['legs'][0]['status'] == 'filled':
-            return True
+
+        if leg == 'take_profit':
+            if order['status'] == 'filled':
+                return True
+
+        if leg == 'stop_loss':
+            if order['legs'][0]['status'] == 'filled':
+                return True
+
         return False
 
     def _loop(self):
@@ -319,13 +329,13 @@ class Trader:
             self._send_status_email(last_order)
 
             # Terminate if running in OCO mode and the take profit order is filled.
-            if self.strategy.oco_initial_order and last_order['status'] == 'filled' and self.order_is_oco(last_order):
+            if self.oco_filled(last_order, leg='take_profit'):
                 reason = 'Take profit OCO order filled.'
                 self._send_termination_alert(reason=reason)
                 self._terminate(reason=reason)
 
             # If the order is filled we will place new one.
-            if last_order['status'] == 'filled' or self.take_profit_oco_filled(last_order):
+            if last_order['status'] == 'filled' or self.oco_filled(last_order, leg='stop_loss'):
                 # Log the order data.
                 self._log_order_status(last_order)
 
