@@ -198,6 +198,9 @@ class Trader:
         self.log.debug('Fetched order: {}'.format(order._raw))
         return order._raw
 
+    def order_is_oco(self, order):
+        return order.get('legs')
+
     def get_orders(self, status='all'):
         '''
         Get a list of all orders.
@@ -237,6 +240,16 @@ class Trader:
         account = self.client.get_account()
         self.log.debug('Fetched account: {}'.format(account._raw))
         return account._raw
+
+    def take_profit_oco_filled(self, order):
+        '''
+        Checks if an order is OCO and if so - is the take profit leg filled.
+        '''
+        if not order.get('legs'):
+            return False
+        if order['legs'][0]['status'] == 'filled':
+            return True
+        return False
 
     def _loop(self):
         '''
@@ -303,21 +316,16 @@ class Trader:
             last_order = self.get_order(last_order_id)
 
             # Send email if monitoring is enabled.
-            if self.strategy.enable_email_monitoring:
-                self._send_status_email(last_order)
+            self._send_status_email(last_order)
 
             # Terminate if running in OCO mode and the take profit order is filled.
-            if self.strategy.oco_initial_order and last_order['status'] == 'filled' \
-            and last_order['client_order_id'].startswith('initial'):
-                termination_reason = 'Take profit order from the OCO pair was filled.'
-                if self.strategy.enable_email_monitoring:
-                    response = self._send_termination_alert(reason=termination_reason)
-                    self.log.info(response)
-                self._terminate(reason=termination_reason)
+            if self.strategy.oco_initial_order and last_order['status'] == 'filled' and self.order_is_oco(last_order):
+                reason = 'Take profit OCO order filled.'
+                self._send_termination_alert(reason=reason)
+                self._terminate(reason=reason)
 
             # If the order is filled we will place new one.
-            if last_order['status'] == 'filled' \
-            or (last_order.get('legs') and last_order['legs'][0]['status'] == 'filled'):
+            if last_order['status'] == 'filled' or self.take_profit_oco_filled(last_order):
                 # Log the order data.
                 self._log_order_status(last_order)
 
@@ -334,7 +342,7 @@ class Trader:
                     jump_stop_price = self.strategy.jump_sell_stop_price
 
                 # Generate the order parameters.
-                if self.strategy.oco_loop_order:
+                if self.strategy.oco_loop_order and self.state['next_order_side'] == 'sell':
                     order_parameters = {
                         'symbol': self.symbol,
                         'qty': self.strategy.quantity,
@@ -523,6 +531,10 @@ class Trader:
         Compare the timestamp of the last send email and it is more than
         the desired frequency send new email.
         '''
+
+        # Check if email notifications are enabled.
+        if not self.strategy.enable_email_monitoring:
+            return
 
         # The time difference is current time minus last email time in seconds.
         time_diff = time.time() - self.last_email_timestamp
