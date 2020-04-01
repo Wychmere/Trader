@@ -354,7 +354,7 @@ class Trader:
                     jump_stop_price = self.strategy.jump_sell_stop_price
                     oco_jump_limit_price = self.strategy.oco_jump_sell_limit_price
                     oco_jump_stop_price = self.strategy.oco_jump_sell_stop_price
-                    oco_limit_price = self.strategy.oco_limit_price
+                    oco_limit_price = self.strategy.oco_sell_limit_price
                     oco_stop_price = self.strategy.oco_sell_stop_price
 
                 # Generate the order parameters.
@@ -519,8 +519,8 @@ class Trader:
             self.strategy.initial_sell_stop_price = initial_trade_price
         if self.strategy.oco_loop_order:
             # Loop orders.
-            self.strategy.oco_buy_limit_price = self.strategy.oco_limit_price + loop_trade_spread + loop_limit_spread
-            self.strategy.oco_sell_limit_price = self.strategy.oco_limit_price - loop_trade_spread - loop_limit_spread
+            self.strategy.oco_buy_limit_price = self.strategy.oco_limit_price
+            self.strategy.oco_sell_limit_price = self.strategy.oco_limit_price
             self.strategy.oco_buy_stop_price = loop_signal_price + loop_trade_spread
             self.strategy.oco_sell_stop_price = loop_signal_price - loop_trade_spread
             # Jump orders.
