@@ -354,6 +354,8 @@ class Trader:
                     jump_stop_price = self.strategy.jump_sell_stop_price
                     oco_jump_limit_price = self.strategy.oco_jump_sell_limit_price
                     oco_jump_stop_price = self.strategy.oco_jump_sell_stop_price
+                    oco_limit_price = self.strategy.oco_limit_price
+                    oco_stop_price = self.strategy.oco_sell_stop_price
 
                 # Generate the order parameters.
                 if self.strategy.oco_loop_order and self.state['next_order_side'] == 'sell':
@@ -364,8 +366,8 @@ class Trader:
                         'type': 'limit',
                         'time_in_force': self.strategy.time_in_force,
                         'order_class': 'oco',
-                        'take_profit': {'limit_price': oco_jump_limit_price},
-                        'stop_loss': {'stop_price': oco_jump_stop_price},
+                        'take_profit': {'limit_price': oco_limit_price},
+                        'stop_loss': {'stop_price': oco_stop_price},
                         'client_order_id': self._generate_order_id('loop')}
                 else:
                     order_parameters = {
@@ -400,8 +402,8 @@ class Trader:
                     if self.strategy.oco_loop_order and order_parameters['side'] == 'sell':
                         order_parameters.update({
                             'order_class': 'oco',
-                            'stop_loss': {'stop_price': jump_stop_price},
-                            'take_profit': {'limit_price': jump_limit_price},
+                            'stop_loss': {'stop_price': oco_jump_stop_price},
+                            'take_profit': {'limit_price': oco_jump_limit_price},
                             'client_order_id': self._generate_order_id('loop')})
                     else:
                         order_parameters.update({
@@ -510,13 +512,20 @@ class Trader:
 
         # OCO orders are handles as special case.
         if self.strategy.oco_initial_order:
+            # Initial order.
             self.strategy.initial_buy_limit_price = initial_trade_price - initial_limit_spread
             self.strategy.initial_sell_limit_price = initial_trade_price + initial_limit_spread
             self.strategy.initial_buy_stop_price = initial_trade_price
             self.strategy.initial_sell_stop_price = initial_trade_price
         if self.strategy.oco_loop_order:
-            self.strategy.oco_jump_buy_limit_price = loop_signal_price + jump_trade_spread + jump_limit_spread
-            self.strategy.oco_jump_sell_limit_price = loop_signal_price + jump_trade_spread + jump_limit_spread
+            # Loop orders.
+            self.strategy.oco_buy_limit_price = self.strategy.oco_limit_price + loop_trade_spread + loop_limit_spread
+            self.strategy.oco_sell_limit_price = self.strategy.oco_limit_price - loop_trade_spread - loop_limit_spread
+            self.strategy.oco_buy_stop_price = loop_signal_price + loop_trade_spread
+            self.strategy.oco_sell_stop_price = loop_signal_price - loop_trade_spread
+            # Jump orders.
+            self.strategy.oco_jump_buy_limit_price = self.strategy.oco_limit_price + jump_trade_spread + jump_limit_spread
+            self.strategy.oco_jump_sell_limit_price = self.strategy.oco_limit_price + jump_trade_spread + jump_limit_spread
             self.strategy.oco_jump_buy_stop_price = loop_signal_price - jump_trade_spread
             self.strategy.oco_jump_sell_stop_price = loop_signal_price - jump_trade_spread
 
