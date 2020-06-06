@@ -6,9 +6,7 @@ https://github.com/alpacahq/alpaca-trade-api-python
 '''
 import time
 import uuid
-import config
 import logging
-import strategy
 import traceback
 import email_sender
 import alpaca_trade_api as tradeapi
@@ -47,16 +45,16 @@ class Trader:
         # Trader supports single symbol at this point.
         self.symbol = self.strategy.symbol
 
-        self.update_time = config.update_time
-        self.sleep_after_error = config.sleep_after_error
+        self.update_time = self.config.update_time
+        self.sleep_after_error = self.config.sleep_after_error
 
         # The number of retries if the order creation fails.
-        self.retry_order_creation = config.retry_order_creation
+        self.retry_order_creation = self.config.retry_order_creation
 
-        self.order_status_check_delay = config.order_status_check_delay
+        self.order_status_check_delay = self.config.order_status_check_delay
 
         # Set the base url.
-        if config.use_sandbox:
+        if self.config.use_sandbox:
             base_url = 'https://paper-api.alpaca.markets'
         else:
             base_url = 'https://api.alpaca.markets'
@@ -70,15 +68,15 @@ class Trader:
 
         # Setup logging.
         self.set_logger(
-            level=config.log_level,
-            console_log=config.console_log,
-            log_file=config.log_file)
+            level=self.config.log_level,
+            console_log=self.config.console_log,
+            log_file=self.config.log_file)
 
         # Setup email sending.
         if strategy.enable_email_monitoring:
             # Set the last_email_timestamp to current time.
             self.last_email_timestamp = time.time()
-            self.email_sender = email_sender.EmailSender(config.sendgrid_api_key)
+            self.email_sender = email_sender.EmailSender(self.config.sendgrid_api_key)
 
     def set_logger(self, level, console_log, log_file):
         '''
@@ -92,10 +90,11 @@ class Trader:
         log_headers = [logging.FileHandler(log_file)]
         if console_log:
             log_headers.append(logging.StreamHandler())
-        log_format = '%(asctime)s [%(levelname)s] %(message)s'
+        strategy_name = self.strategy.__name__
+        log_format = '%(asctime)s [%(threadName)s] [%(levelname)s] %(message)s'
         logging.basicConfig(level=getattr(logging, level),
             format=log_format, handlers=log_headers)
-        self.log = logging.getLogger()
+        self.log = logging.getLogger(strategy_name)
 
     def get_position(self):
         '''
