@@ -67,10 +67,7 @@ class Trader:
             api_version='v2')
 
         # Setup logging.
-        self.set_logger(
-            level=self.config.log_level,
-            console_log=self.config.console_log,
-            log_file=self.config.log_file)
+        self.log = self.construct_logger()
 
         # Setup email sending.
         if strategy.enable_email_monitoring:
@@ -78,23 +75,37 @@ class Trader:
             self.last_email_timestamp = time.time()
             self.email_sender = email_sender.EmailSender(self.config.sendgrid_api_key)
 
-    def set_logger(self, level, console_log, log_file):
+    def construct_logger(self):
         '''
-        Setup the logging.
+        Create logger object.
+        Returns: logger
+        '''
 
-        Arguments:
-        level (str) : The log level: DEBUG, INFO, WARNING, INFO
-        console_log (str) : If true logs will be printed to the console.
-        log_file (str) : The filename of the log file to be generated.
-        '''
-        log_headers = [logging.FileHandler(log_file)]
-        if console_log:
-            log_headers.append(logging.StreamHandler())
-        strategy_name = self.strategy.__name__
+        # The name is used to identify loogers and log files.
+        # The log file will be named as strategy_name + config.log_file.
+        name = self.strategy.__name__
+        log_file = '{}_{}'.format(name, self.config.log_file)
+
+        logger = logging.getLogger(name)
+        log_level = getattr(logging, self.config.log_level)
+        logger.setLevel(log_level)
+
+        # Thread names match strategy names so we can use it in the formatting.
         log_format = '%(asctime)s [%(threadName)s] [%(levelname)s] %(message)s'
-        logging.basicConfig(level=getattr(logging, level),
-            format=log_format, handlers=log_headers)
-        self.log = logging.getLogger(strategy_name)
+        formatter = logging.Formatter(log_format)
+
+        # Add the console handler.
+        if self.config.console_log:
+            stream_handler = logging.StreamHandler()
+            stream_handler.setFormatter(formatter)
+            logger.addHandler(stream_handler)
+
+        # Add the file handler.
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
+        return logger
 
     def get_position(self):
         '''

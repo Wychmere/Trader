@@ -12,6 +12,7 @@ threads are terminated.
 import time
 import config
 import pathlib
+import logging
 import importlib
 import trader as tr
 from threading import Thread
@@ -21,6 +22,39 @@ STRATEGY_FILE_PREFIX = 'stock_'
 
 # The interval in seconds between starting Traders.
 TRADERS_START_INTERVAL = 2
+
+
+def construct_logger(name, log_file, level):
+        '''
+        Create logger object.
+
+        Arguments:
+        name (str): The name of the logger.
+        log_file (str): The name of the log file to be generated.
+        level (str): The log level, e.g. DEBUG, INFO, ERROR..
+
+        Returns: logger
+        '''
+
+        logger = logging.getLogger(name)
+        log_level = getattr(logging, level)
+        logger.setLevel(log_level)
+
+        log_format = '%(asctime)s [%(name)s] [%(levelname)s] %(message)s'
+        formatter = logging.Formatter(log_format)
+
+        # Add the console handler.
+        if config.console_log:
+            stream_handler = logging.StreamHandler()
+            stream_handler.setFormatter(formatter)
+            logger.addHandler(stream_handler)
+
+        # Add the file handler.
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
+        return logger
 
 
 def construct_trader(strategy_file, config):
@@ -59,6 +93,9 @@ def construct_trader(strategy_file, config):
 
 
 def main():
+    # Create the main threads logger.
+    log = construct_logger('main', config.log_file, config.log_level)
+
     # Find all strategy files and create a Trader for each file.
     traders = []
     working_directory = pathlib.Path(__file__).parent
@@ -69,7 +106,7 @@ def main():
 
     # Start traders one by one with interval between stars to avoid API overload.
     for trader in traders:
-        print('Starting {}'.format(trader['name']))
+        log.info('Starting {}'.format(trader['name']))
         trader['thread'].start()
         time.sleep(TRADERS_START_INTERVAL)
 
@@ -80,7 +117,7 @@ def main():
             time.sleep(30)
             continue
         else:
-            print('All threads are terminated.')
+            log.info('All threads are terminated.')
             break
 
 
