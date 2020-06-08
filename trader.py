@@ -6,8 +6,10 @@ https://github.com/alpacahq/alpaca-trade-api-python
 '''
 import time
 import uuid
+import signal
 import logging
 import traceback
+import threading
 import email_sender
 import alpaca_trade_api as tradeapi
 from alpaca_trade_api.rest import APIError as APIError
@@ -19,7 +21,8 @@ class OrderRejectedError(Exception):
     '''
     pass
 
-class Trader:
+
+class Trader(threading.Thread):
     '''
     The trander handles communication with the Alpaca API.
 
@@ -30,6 +33,13 @@ class Trader:
     strategy (module) : The strategy module.
     '''
     def __init__(self, api_key, api_secret, config, strategy):
+        # Trader is runnable as a thread so we need to set it up
+        # accordingly. If it has to be terminated from the parrent
+        # process it will receive a flag and will go trough it's
+        # termination process including cancelling existing orders.
+        threading.Thread.__init__(self)
+        self._shutdown_flag = threading.Event()
+
         # All state related variables will be tracked in the state dict.
         # Don't initiate any keys here because the _loop function detects if
         # it is running for the first time by checking its truth value.
@@ -133,6 +143,9 @@ class Trader:
         clock = self.client.get_clock()
         return clock._raw
 
+    def run(self):
+        self.run_forever()
+
     def run_forever(self):
         '''
         Handles all errors except KeyboardInterrupt.
@@ -145,6 +158,7 @@ class Trader:
         # Run forever.
         while True:
             try:
+                self._signals()
                 self._loop()
                 time.sleep(self.update_time)
             # Creating of new order failed.
@@ -251,6 +265,17 @@ class Trader:
         self.log.debug('Fetched account: {}'.format(account._raw))
         return account._raw
 
+    def cancel_symbol_orders(self):
+        '''
+        Cancel all orders for the traded symbol.
+        '''
+        skip_statusses = ['canceled', 'filled']
+        open_orders = self.get_orders()
+        for order in open_orders:
+            if order.symbol == self.symbol \
+            and order.status not in skip_statusses:
+                self.client.cancel_order(order.id)
+
     def oco_filled(self, order, leg):
         '''
         Checks if an order is OCO and if so - is the take profit leg filled.
@@ -270,6 +295,13 @@ class Trader:
                 return True
 
         return False
+
+    def _signals(self):
+        '''
+        Check signals and raise the corresponding exceptions.
+        '''
+        if self._shutdown_flag.is_set():
+            raise KeyboardInterrupt
 
     def _loop(self):
         '''
@@ -677,6 +709,6 @@ class Trader:
         '''
         if reason:
             self.log.info(reason)
-        self.log.info('Canceling all orders and terminating.')
-        self.client.cancel_all_orders()
+        self.log.info(f'Canceling all {self.symbol} orders and terminating.')
+        self.cancel_symbol_orders()
         raise SystemExit
