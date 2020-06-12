@@ -14,6 +14,7 @@ ctrl+C and wait for the ">>>" prompt to show up.
 Supported user commands:
 kill <strategy name> - Terminates specific strategy e.g stock_1
 kill all - Terminates all strategies.
+start <strategy name> - Start specific strategy if it is not running already.
 '''
 
 import time
@@ -164,23 +165,33 @@ def main():
 
             # Disable logging while in user input mode.
             for trader in traders:
-                logger = logging.getLogger(trader.name)
-                logger.disabled = True
+                trader.log.disabled = True
 
             # Get user input.
             user_input = get_user_input()
 
-            # Kill trades.
-            for trader in traders:
-                if user_input['action'] == 'kill':
+            # Kill traders.
+            if user_input['action'] == 'kill':
+                for trader in traders:
                     if trader.name == user_input['target'] \
                     or user_input['target'] == 'all':
+                        trader.log.disabled = False
                         trader._shutdown_flag.set()
+                        trader.join()
+                        del traders[traders.index(trader)]
+
+            # Restart traders.
+            if user_input['action'] == 'start':
+                working_directory = pathlib.Path(__file__).parent
+                strategy_file = working_directory / f'{user_input["target"]}.py'
+                if strategy_file.is_file():
+                    traders.append(construct_trader(strategy_file, config))
+                    traders[-1].log.disabled = False
+                    traders[-1].start()
 
             # Enable logging.
             for trader in traders:
-                logger = logging.getLogger(trader.name)
-                logger.disabled = False
+                trader.log.disabled = False
 
 if __name__ == '__main__':
     main()

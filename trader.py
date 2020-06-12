@@ -97,6 +97,7 @@ class Trader(threading.Thread):
         log_file = '{}_{}'.format(name, self.config.log_file)
 
         logger = logging.getLogger(name)
+        logger.propagate = False
         log_level = getattr(logging, self.config.log_level)
         logger.setLevel(log_level)
 
@@ -105,15 +106,16 @@ class Trader(threading.Thread):
         formatter = logging.Formatter(log_format)
 
         # Add the console handler.
-        if self.config.console_log:
-            stream_handler = logging.StreamHandler()
-            stream_handler.setFormatter(formatter)
-            logger.addHandler(stream_handler)
+        if not logger.handlers:
+            if self.config.console_log:
+                stream_handler = logging.StreamHandler()
+                stream_handler.setFormatter(formatter)
+                logger.addHandler(stream_handler)
 
-        # Add the file handler.
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
+            # Add the file handler.
+            file_handler = logging.FileHandler(log_file)
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
 
         return logger
 
