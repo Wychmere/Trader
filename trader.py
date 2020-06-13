@@ -161,6 +161,7 @@ class Trader(threading.Thread):
         while True:
             try:
                 self._signals()
+                self.log.info('Updated.')
                 self._loop()
                 time.sleep(self.update_time)
             # Creating of new order failed.
@@ -564,23 +565,22 @@ class Trader(threading.Thread):
             self.strategy.jump_sell_limit_price = self.strategy.jump_sell_stop_price - jump_limit_spread
 
         # OCO orders are handles as special case.
-        if self.strategy.oco_initial_order:
-            # Initial order.
-            self.strategy.oco_initial_buy_limit_price = initial_oco_price - initial_limit_spread
-            self.strategy.oco_initial_sell_limit_price = initial_oco_price + initial_limit_spread
-            self.strategy.oco_initial_buy_stop_price = initial_oco_price
-            self.strategy.oco_initial_sell_stop_price = initial_oco_price
-        if self.strategy.oco_loop_order:
-            # Loop orders.
-            self.strategy.oco_buy_limit_price = self.strategy.oco_limit_price
-            self.strategy.oco_sell_limit_price = self.strategy.oco_limit_price
-            self.strategy.oco_buy_stop_price = loop_signal_price + loop_trade_spread
-            self.strategy.oco_sell_stop_price = loop_signal_price - loop_trade_spread
-            # Jump orders.
-            self.strategy.oco_jump_buy_limit_price = self.strategy.oco_limit_price + jump_loop_order + jump_limit_spread
-            self.strategy.oco_jump_sell_limit_price = self.strategy.oco_limit_price + jump_loop_order + jump_limit_spread
-            self.strategy.oco_jump_buy_stop_price = loop_signal_price - jump_loop_order
-            self.strategy.oco_jump_sell_stop_price = loop_signal_price - jump_loop_order
+        # Initial OCO order.
+        self.strategy.oco_initial_buy_limit_price = initial_oco_price - initial_limit_spread
+        self.strategy.oco_initial_sell_limit_price = initial_oco_price + initial_limit_spread
+        self.strategy.oco_initial_buy_stop_price = initial_oco_price
+        self.strategy.oco_initial_sell_stop_price = initial_oco_price
+
+        # Loop OCO orders.
+        self.strategy.oco_buy_limit_price = self.strategy.oco_limit_price
+        self.strategy.oco_sell_limit_price = self.strategy.oco_limit_price
+        self.strategy.oco_buy_stop_price = loop_signal_price + loop_trade_spread
+        self.strategy.oco_sell_stop_price = loop_signal_price - loop_trade_spread
+        # Jump OCO orders.
+        self.strategy.oco_jump_buy_limit_price = self.strategy.oco_limit_price + jump_loop_order + jump_limit_spread
+        self.strategy.oco_jump_sell_limit_price = self.strategy.oco_limit_price + jump_loop_order + jump_limit_spread
+        self.strategy.oco_jump_buy_stop_price = loop_signal_price - jump_loop_order
+        self.strategy.oco_jump_sell_stop_price = loop_signal_price - jump_loop_order
 
     def _generate_order_id(self, prefix):
         '''
