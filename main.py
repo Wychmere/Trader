@@ -178,7 +178,7 @@ def main():
                         trader.log.disabled = False
                         trader._shutdown_flag.set()
                         trader.join()
-                        del traders[traders.index(trader)]
+                traders = [t for t in traders if t.is_alive()]
 
             # Restart traders.
             if user_input['action'] == 'start':
