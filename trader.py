@@ -161,7 +161,6 @@ class Trader(threading.Thread):
         while True:
             try:
                 self._signals()
-                self.log.info('Updated.')
                 self._loop()
                 time.sleep(self.update_time)
             # Creating of new order failed.
