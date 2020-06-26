@@ -7,6 +7,7 @@ https://github.com/alpacahq/alpaca-trade-api-python
 import time
 import uuid
 import signal
+import zmq_msg
 import logging
 import traceback
 import threading
@@ -84,6 +85,8 @@ class Trader(threading.Thread):
             # Set the last_email_timestamp to current time.
             self.last_email_timestamp = time.time()
             self.email_sender = email_sender.EmailSender(self.config.sendgrid_api_key)
+
+        self.zmq_client = zmq_msg.Client()
 
     def construct_logger(self):
         '''
@@ -211,7 +214,7 @@ class Trader(threading.Thread):
             self.log.error('API error during order creation: {}'.format(err._error))
             return None
 
-    def get_order(self, order_id):
+    def get_order(self, order_id, streaming=True):
         '''
         Get an order by its ID.
 
@@ -220,6 +223,16 @@ class Trader(threading.Thread):
 
         Returns: Dict
         '''
+        if streaming:
+            response = self.zmq_client.read()
+            order = response['orders'].get(order_id)
+            self.log.debug('Fetched order: {}'.format(order))
+            if not order:
+                # New orders doesn't show in the streaming API
+                # so we will assume that the order status is "new"
+                return {'status': 'new', 'id': order_id}
+            return order
+
         order = self.client.get_order(order_id)
         self.log.debug('Fetched order: {}'.format(order._raw))
         return order._raw
@@ -227,7 +240,7 @@ class Trader(threading.Thread):
     def order_is_oco(self, order):
         return order.get('legs')
 
-    def get_orders(self, status='all'):
+    def get_orders(self, status='all', streaming=True):
         '''
         Get a list of all orders.
 
@@ -236,6 +249,16 @@ class Trader(threading.Thread):
 
         Returns: Dict
         '''
+
+        if streaming:
+            response = self.zmq_client.read()
+            orders = response['orders']
+            if not orders:
+                return []
+            orders = [o for o in orders.values() if o['status'] == status]
+            self.log.debug('Fetched orders: {}'.format(orders))
+            return orders
+
         orders = self.client.list_orders(status=status)
         self.log.debug('Fetched orders: {}'.format(orders))
         return orders
