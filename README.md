@@ -6,6 +6,7 @@ To run it you will need:
 Python version 3.7 or above.
 The ```alpaca-trade-api``` library.
 The ```sendgrid``` library.
+The ```pyzmq``` library.
 To install all requirements you can use this command:
 ```pip install -r requirements.txt```
 
