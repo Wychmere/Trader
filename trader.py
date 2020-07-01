@@ -295,7 +295,7 @@ class Trader(threading.Thread):
         Cancel all orders for the traded symbol.
         '''
         skip_statusses = ['canceled', 'filled']
-        open_orders = self.get_orders()
+        open_orders = self.get_orders(streaming=False)
         for order in open_orders:
             if order.symbol == self.symbol \
             and order.status not in skip_statusses:
