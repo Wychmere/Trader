@@ -14,6 +14,7 @@ import threading
 import email_sender
 import alpaca_trade_api as tradeapi
 from alpaca_trade_api.rest import APIError as APIError
+from alpaca_trade_api.entity import Order as alpaca_order
 
 
 class OrderRejectedError(Exception):
@@ -207,7 +208,10 @@ class Trader(threading.Thread):
         Returns: Dict on success and None on error.
         '''
         try:
-            order = self.client.submit_order(**parameters)
+            if self.strategy.order_instructions:
+                order = self._submit_order_with_instructions(**parameters)
+            else:
+                order = self.client.submit_order(**parameters)
             self.log.debug('Created order: {}'.format(order._raw))
             return order._raw
         except APIError as err:
@@ -736,3 +740,46 @@ class Trader(threading.Thread):
         self.log.info(f'Canceling all {self.symbol} orders and terminating.')
         self.cancel_symbol_orders()
         raise SystemExit
+
+    def _submit_order_with_instructions(self, symbol, qty,
+                    side, type, time_in_force, limit_price=None,
+                    stop_price=None, client_order_id=None,
+                    extended_hours=None, order_class=None,
+                    take_profit=None, stop_loss=None):
+        '''
+        This is slightly modified version of the original submit_order
+        method of alpaca_trade_api used when we need to add order instructions.
+        '''
+        params = {
+            'symbol':        symbol,
+            'qty':           qty,
+            'side':          side,
+            'type':          type,
+            'time_in_force': time_in_force,
+            'instructions': self.strategy.order_instructions
+        }
+        if limit_price is not None:
+            params['limit_price'] = float(limit_price)
+        if stop_price is not None:
+            params['stop_price'] = float(stop_price)
+        if client_order_id is not None:
+            params['client_order_id'] = client_order_id
+        if extended_hours is not None:
+            params['extended_hours'] = extended_hours
+        if order_class is not None:
+            params['order_class'] = order_class
+        if take_profit is not None:
+            if 'limit_price' in take_profit:
+                take_profit['limit_price'] = float(
+                    take_profit['limit_price'])
+            params['take_profit'] = take_profit
+        if stop_loss is not None:
+            if 'limit_price' in stop_loss:
+                stop_loss['limit_price'] = float(
+                    stop_loss['limit_price'])
+            if 'stop_price' in stop_loss:
+                stop_loss['stop_price'] = float(
+                    stop_loss['stop_price'])
+            params['stop_loss'] = stop_loss
+        resp = self.client.post('/orders', params)
+        return alpaca_order(resp)

@@ -7,9 +7,10 @@ quantity = 1
 initial_order_side = 'sell'
 initial_order_type = 'limit'
 loop_order_type = 'limit'
+order_instructions = 'alpaca::wexc-algo=destination=STOCK-DMA'
 
 # Use OCO for the initial order.
-oco_initial_order = True
+oco_initial_order = False
 initial_oco_price = 239
 
 # TODO add documentation about the usage of price and spread variables.
@@ -27,7 +28,7 @@ jump_loop_order = 4
 jump_limit_spread = 4
 
 # Use OCO orders for the loop.
-oco_loop_order = True
+oco_loop_order = False
 oco_limit_price = 270
 
 # Valid values for time_in_force: day, gtc, opg, cls, ioc, fok
