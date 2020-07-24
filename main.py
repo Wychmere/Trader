@@ -17,6 +17,7 @@ kill all - Terminates all strategies.
 start <strategy name> - Start specific strategy if it is not running already.
 '''
 
+import sys
 import time
 import signal
 import config
@@ -94,7 +95,11 @@ def construct_trader(strategy_file, config):
     # ending with ".py" so we can split it at this sequence and keep
     # the first part.
     module_name = strategy_file.name.split('.py')[0]
-    strategy_module = importlib.import_module(module_name)
+    strategy_module = sys.modules.get(module_name)
+    if strategy_module:
+        importlib.reload(strategy_module)
+    else:
+        strategy_module = importlib.import_module(module_name)
 
     # Create a Trader.
     _trader = tr.Trader(
