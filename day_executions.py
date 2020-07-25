@@ -39,22 +39,17 @@ def to_csv(rows, filename):
 
 def arguments():
     description = '''
-    Pull the account FILL activities for given date
-    and saves it to CSV file.
-    Args:
-    -output
-    The filename of the CSV file to be generated. If not
-    specified the output will only be printed on screen.
-    -date
-    The data for which to pull data in YYYY-MM-DD format.
-    Defaults to current date.
+    Pull the account FILL activities for given date and saves it to CSV file.
     Example:
-    python3 day_executions -output my_file.csv -date 2020-07-24
+    python day_executions -output my_file.csv -date 2020-07-24
     '''
     parser = argparse.ArgumentParser(description=description)
-    parser.add_argument('-output', type=str, default=None)
-    parser.add_argument('-date', type=str, default=None)
+    parser.add_argument('-output', type=str, default=None,
+                        help='the output filename')
+    parser.add_argument('-date', type=str, default=None,
+                        help='the date to pull data for in YYYY-MM-DD format')
     return parser.parse_args()
+
 
 def main():
     # Set the base url.
@@ -102,6 +97,7 @@ def main():
     # Save to file.
     if args.output:
         to_csv(fills, args.output)
+
 
 if __name__ == '__main__':
     main()
