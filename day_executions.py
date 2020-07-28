@@ -15,14 +15,12 @@ Example:
 python3 day_executions -output my_file.csv -date 2020-07-24
 '''
 
-import sys
 import csv
 import pytz
 import config
 import pathlib
 import argparse
 import datetime
-import dateutil.parser
 import alpaca_trade_api as tradeapi
 
 
@@ -68,35 +66,30 @@ def main():
     # Get arguments.
     args = arguments()
 
-    # Select a data.
+    # Select a date.
+    tz = pytz.timezone('America/New_York')
     if args.date:
-        date = args.date
+        start_date = datetime.datetime.strptime(args.date, '%Y-%m-%d')
+        end_date = start_date + datetime.timedelta(days=1)
+        start_date = start_date.replace(tzinfo=tz)
+        end_date = end_date.replace(tzinfo=tz)
     else:
-        tz = pytz.timezone('America/New_York')
-        date = datetime.datetime.now(tz).strftime('%Y-%m-%d')
+        #start_date = datetime.datetime(2020, 7, 28, tzinfo=tz)
+        start_date = datetime.datetime.utcnow().date()
+        end_date = (start_date + datetime.timedelta(days=1))
+
+    end_date = end_date.isoformat()
+    start_date = start_date.isoformat()
 
     # Get account data.
-    raw_fills = client.get_activities(activity_types='FILL', date=date)
+    orders = client.list_orders(limit=500, after=start_date, until=end_date, status='all')
+    orders = [o._raw for o in orders]
 
-    def process_fill(f):
-        to_keep = ['transaction_time', 'price', 'qty', 'side',
-                   'symbol', 'leaves_qty', 'order_id', 'cum_qty']
-        processed = {k: v for k, v in f._raw.items() if k in to_keep}
-        date = dateutil.parser.isoparse(processed['transaction_time'])
-        processed['transaction_time'] = date.strftime('%Y-%m-%d %H:%M:%S')
-        return processed
-
-    fills = [process_fill(f) for f in raw_fills]
-
-    if not fills:
-        print(f'No data for {date}')
-        return
-
-    print(fills)
+    print(orders)
 
     # Save to file.
     if args.output:
-        to_csv(fills, args.output)
+        to_csv(orders, args.output)
 
 
 if __name__ == '__main__':
