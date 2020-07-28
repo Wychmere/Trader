@@ -14,14 +14,31 @@ Args:
 Example:
 python3 day_executions -output my_file.csv -date 2020-07-24
 '''
-
+import os
 import csv
 import pytz
 import config
+import socket
 import pathlib
 import argparse
 import datetime
+import http.server
+import socketserver
 import alpaca_trade_api as tradeapi
+
+
+def serve(filename):
+    os.system('mkdir tmp')
+    os.system('cp {0} tmp/{0}'.format(filename))
+    os.chdir('tmp/')
+
+    hostname = socket.gethostname()
+    ip_address = socket.gethostbyname(hostname)
+    handler = http.server.SimpleHTTPRequestHandler
+
+    with socketserver.TCPServer(('', 8000), handler) as httpd:
+            print(f'Download URL: http://{ip_address}:8000')
+            httpd.serve_forever()
 
 
 def to_csv(rows, filename):
@@ -90,6 +107,7 @@ def main():
     # Save to file.
     if args.output:
         to_csv(orders, args.output)
+        serve(args.output)
 
 
 if __name__ == '__main__':
