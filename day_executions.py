@@ -57,12 +57,15 @@ def arguments():
     Pull the account FILL activities for given date and saves it to CSV file.
     Example:
     python day_executions -output my_file.csv -date 2020-07-24
+    python day_executions -output my_file.csv -date_range "2020-07-20 - 2020-07-30"
     '''
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('-output', type=str, default=None,
                         help='the output filename')
     parser.add_argument('-date', type=str, default=None,
                         help='the date to pull data for in YYYY-MM-DD format')
+    parser.add_argument('-date_range', type=str, default=None,
+                        help='the date range to pull data for in YYYY-MM-DD format')
     return parser.parse_args()
 
 
@@ -90,17 +93,34 @@ def main():
         end_date = start_date + datetime.timedelta(days=1)
         start_date = start_date.replace(tzinfo=tz)
         end_date = end_date.replace(tzinfo=tz)
+        dates = [[start_date, end_date]]
+
+    elif args.date_range:
+        date_range_start, date_range_end = args.date_range.split(' - ')
+        start_date = datetime.datetime.strptime(date_range_start, '%Y-%m-%d')
+        end_date = datetime.datetime.strptime(date_range_end, '%Y-%m-%d')
+        start_date = start_date.replace(tzinfo=tz)
+        end_date = end_date.replace(tzinfo=tz)
+
+        one_day = datetime.timedelta(days=1)
+        dates = [[start_date, start_date + one_day]]
+        for _ in range((end_date - start_date).days):
+            next_date = dates[-1][1] + one_day
+            dates.append([dates[-1][1], next_date])
     else:
         #start_date = datetime.datetime(2020, 7, 28, tzinfo=tz)
         start_date = datetime.datetime.utcnow().date()
         end_date = (start_date + datetime.timedelta(days=1))
+        dates = [[start_date, end_date]]
 
-    end_date = end_date.isoformat()
-    start_date = start_date.isoformat()
-
-    # Get account data.
-    orders = client.list_orders(limit=500, after=start_date, until=end_date, status='all')
-    orders = [o._raw for o in orders]
+    orders = []
+    for start_date, end_date in dates:
+        days_orders = client.list_orders(
+            limit=500,
+            after=start_date.isoformat(),
+            until=end_date.isoformat(),
+            status='all')
+        orders.extend([o._raw for o in days_orders])
 
     print(orders)
 
