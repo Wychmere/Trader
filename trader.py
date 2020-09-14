@@ -52,7 +52,8 @@ class Trader(threading.Thread):
         self.config = config
 
         # Make sure that the strategy is safe.
-        self._make_strategy_safe()
+        # TODO: Remove if not needed.
+        #self._make_strategy_safe()
 
         # Trader supports single symbol at this point.
         self.symbol = self.strategy.symbol
@@ -88,6 +89,11 @@ class Trader(threading.Thread):
             self.email_sender = email_sender.EmailSender(self.config.sendgrid_api_key)
 
         self.zmq_client = zmq_msg.Client()
+
+        if self.strategy.initial_order_side == 'buy':
+            self.order_sides = ['buy', 'sell']
+        elif self.strategy.initial_order_side == 'sell':
+            self.order_sides = ['sell', 'buy']
 
     def construct_logger(self):
         '''
@@ -150,7 +156,22 @@ class Trader(threading.Thread):
         return clock._raw
 
     def run(self):
-        self.run_forever()
+        #self.run_forever()
+        ##################
+        while True:
+            try:
+                self.loop()
+                time.sleep(self.update_time)
+            except KeyboardInterrupt:
+                self._terminate(reason='User interruption.')
+            # Explicit system exit.
+            except SystemExit:
+                raise SystemExit
+            # Any other error will be ignored.
+            except:
+                self.log.warning('The main loop failed. {}'.format(
+                    traceback.format_exc()))
+                time.sleep(self.sleep_after_error)
 
     def run_forever(self):
         '''
@@ -332,190 +353,132 @@ class Trader(threading.Thread):
         if self._shutdown_flag.is_set():
             raise KeyboardInterrupt
 
-    def _loop(self):
-        '''
-        The main loop of Trader. Implement all trading logic here.
-        '''
+    def log_event(self, event_type, log_level='info', **kwargs):
+        kw_data = ['{}={}'.format(k, v) for k, v in kwargs.items()]
+        info = ' | '.join(kw_data)
+        log_func = getattr(self.log, log_level)
+        log_func('{}{}'.format(event_type, info))
+
+    def switch_order_side(self):
+        self.order_sides.reverse()
+        return self.order_sides[-1]
+
+    def reverse_order_side(self):
+        self.order_side()
+
+    def order_parameters(self):
+        return {
+            'symbol': self.symbol,
+            'qty': self.strategy.quantity,
+            'side': self.state['side'],
+            'type': 'market',
+            'time_in_force': self.strategy.time_in_force,
+            'client_order_id': self._generate_order_id('initial')
+        }
+
+    def wait_for_fill(self, order):
+        fail_counter = 0
+        filled = False
+        status = 'Unknown'
+        for _ in range(2):
+            order = self.get_order(order['id'])
+            if not order:
+                if fail_counter < 3:
+                    continue
+                else:
+                    break
+            elif order['status'] in ('rejected', 'canceled'):
+                status = order['status']
+                break
+            elif order['status'] == 'filled':
+                status = order['status']
+                filled = True
+                break
+            time.sleep(2)
+        return filled, status, order
+
+    def market_price(self, stream=True):
+        #TODO Add streaming.
+        last_trade = self.client.get_last_trade(self.symbol)
+        return last_trade.price
+
+    def loop(self):
+        '''The main loop of Trader. Implement all trading logic here.'''
+
+        market_price = self.market_price()
+
         # Executed only at the initial run.
         if not self.state:
-            # The side map will be used for order side switching.
-            self.state['side_map'] = {'buy': 'sell', 'sell': 'buy'}
-            initial_order_side = self.strategy.initial_order_side
+            self.state['side'] = self.strategy.initial_order_side
+            self.state['price'] = self.strategy.initial_signal_price
 
-            # Check which set of order prices we should use.
-            if initial_order_side == 'buy':
-                if self.strategy.oco_initial_order:
-                    limit_price = self.strategy.oco_initial_buy_limit_price
-                    stop_price = self.strategy.oco_initial_buy_stop_price
-                else:
-                    limit_price = self.strategy.initial_buy_limit_price
-                    stop_price = self.strategy.initial_buy_stop_price
-            elif initial_order_side == 'sell':
-                if self.strategy.oco_initial_order:
-                    limit_price = self.strategy.oco_initial_sell_limit_price
-                    stop_price = self.strategy.oco_initial_sell_stop_price
-                else:
-                    limit_price = self.strategy.initial_sell_limit_price
-                    stop_price = self.strategy.initial_sell_stop_price
+            if self.state['side'] == 'buy' and market_price < self.state['price'] \
+            or self.state['side'] == 'sell' and market_price > self.state['price']:
+                return
 
-            # Generate the order parameters.
-            if self.strategy.oco_initial_order:
-                order_parameters = {
-                    'symbol': self.symbol,
-                    'qty': self.strategy.quantity,
-                    'side': initial_order_side,
-                    'type': 'limit',
-                    'time_in_force': self.strategy.time_in_force,
-                    'order_class': 'oco',
-                    'take_profit': {'limit_price': limit_price},
-                    'stop_loss': {'stop_price': stop_price},
-                    'client_order_id': self._generate_order_id('initial')}
-            else:
-                order_parameters = {
-                    'symbol': self.symbol,
-                    'qty': self.strategy.quantity,
-                    'side': initial_order_side,
-                    'type': self.strategy.initial_order_type,
-                    'time_in_force': self.strategy.time_in_force,
-                    'limit_price': limit_price,
-                    'stop_price': stop_price,
-                    'client_order_id' : self._generate_order_id('initial')}
+            order_params = self.order_parameters()
 
             # Create the first order.
-            self.log.info('Created initial order: {}'.format(order_parameters))
-            order = self.submit_order(order_parameters)
+            self.log.info('Created initial order: {}'.format(order_params))
 
-            # Any error during order submission will be treated as order rejection and
-            # will raise OrderRejectedError that is handled by the run_forever method.
+            order = self.submit_order(order_params)
+
             if not order:
-                raise OrderRejectedError('Creating order failed.')
-            else:
-                self.retry_order_creation = self.config.retry_order_creation
+                self.log.warning('Creating initial order failed.')
+                self.state = None
+                return
 
-            self.log.info('Order status: {}'.format(order['status']))
+            filled, status, order = self.wait_for_fill(order)
 
-            # Keep track of the order id and next order side.
-            self.state['last_order_id'] = order['id']
-            self.state['next_order_side'] = self.state['side_map'][initial_order_side]
+            if not filled:
+                self.log.warning('Initial order failed with status: {}'.format(status))
+                self.state = None
+                return
 
-        # Executed on each update after the initial run.
-        else:
-            # Get the order data of the last order.
-            last_order_id = self.state['last_order_id']
-            last_order = self.get_order(last_order_id)
-
+            self.log.info('Order filled.')
+            self.state['last_order'] = order
+            self.state['side'] = self.switch_order_side()
             # Send email if monitoring is enabled.
-            self._send_status_email(last_order)
+            self._send_status_email(order)
+            # Log the order data.
+            self._log_order_status(order)
+            return
 
-            # Terminate if running in OCO mode and the take profit order is filled.
-            if self.oco_filled(last_order, leg='take_profit'):
-                reason = 'Take profit OCO order filled.'
-                self._send_termination_alert(reason=reason)
-                self._terminate(reason=reason)
+        else:
 
-            # If the order is filled we will place new one.
-            if last_order['status'] == 'filled' or self.oco_filled(last_order, leg='stop_loss'):
-                # Log the order data.
-                self._log_order_status(last_order)
+            self.state['price'] = self.strategy.loop_signal_price
 
-                # Check which set of order prices we should use.
-                if self.state['next_order_side'] == 'buy':
-                    limit_price = self.strategy.loop_buy_limit_price
-                    stop_price = self.strategy.loop_buy_stop_price
-                    jump_limit_price = self.strategy.jump_buy_limit_price
-                    jump_stop_price = self.strategy.jump_buy_stop_price
-                    oco_jump_limit_price = self.strategy.oco_jump_buy_limit_price
-                    oco_jump_stop_price = self.strategy.oco_jump_buy_stop_price
-                elif self.state['next_order_side'] == 'sell':
-                    limit_price = self.strategy.loop_sell_limit_price
-                    stop_price = self.strategy.loop_sell_stop_price
-                    jump_limit_price = self.strategy.jump_sell_limit_price
-                    jump_stop_price = self.strategy.jump_sell_stop_price
-                    oco_jump_limit_price = self.strategy.oco_jump_sell_limit_price
-                    oco_jump_stop_price = self.strategy.oco_jump_sell_stop_price
-                    oco_limit_price = self.strategy.oco_sell_limit_price
-                    oco_stop_price = self.strategy.oco_sell_stop_price
+            # Check which set of order prices we should use.
+            if self.state['side'] == 'buy' and market_price < self.state['price'] \
+            or self.state['side'] == 'sell' and market_price > self.state['price']:
+                return
 
-                # Generate the order parameters.
-                if self.strategy.oco_loop_order and self.state['next_order_side'] == 'sell':
-                    order_parameters = {
-                        'symbol': self.symbol,
-                        'qty': self.strategy.quantity,
-                        'side': self.state['next_order_side'],
-                        'type': 'limit',
-                        'time_in_force': self.strategy.time_in_force,
-                        'order_class': 'oco',
-                        'take_profit': {'limit_price': oco_limit_price},
-                        'stop_loss': {'stop_price': oco_stop_price},
-                        'client_order_id': self._generate_order_id('loop')}
-                else:
-                    order_parameters = {
-                        'symbol': self.symbol,
-                        'qty': self.strategy.quantity,
-                        'side': self.state['next_order_side'],
-                        'type': self.strategy.loop_order_type,
-                        'time_in_force': self.strategy.time_in_force,
-                        'limit_price': limit_price,
-                        'stop_price': stop_price,
-                        'client_order_id' : self._generate_order_id('loop')}
+            # Generate the order parameters.
+            order_params = self.order_parameters()
 
-                # Try to create the order.
-                self.log.info('Creating loop order: {}'.format(order_parameters))
-                while self.retry_order_creation > 0:
-                    order = self.submit_order(order_parameters)
-                    if order:
-                        time.sleep(self.order_status_check_delay)
-                        order = self.get_order(order['id'])
-                        if order['status'] != 'rejected':
-                            self.retry_order_creation = self.config.retry_order_creation
-                            break
-                        else:
-                            self.log.info('The loop order was rejected: {}'.format(order))
-                    self.log.info('Creating loop order failed. Retries left: {}'.format(self.retry_order_creation))
-                    order_parameters['client_order_id'] = self._generate_order_id('loop')
-                    self.retry_order_creation -= 1
+            # Try to create the order.
+            self.log.info('Created initial order: {}'.format(order_params))
 
-                # If order creation failed <retry_order_creation> times we will try to use the jump order price.
-                if not order or order['status'] == 'rejected':
-                    self.retry_order_creation = self.config.retry_order_creation
-                    if self.strategy.oco_loop_order and order_parameters['side'] == 'sell':
-                        order_parameters.update({
-                            'order_class': 'oco',
-                            'stop_loss': {'stop_price': oco_jump_stop_price},
-                            'take_profit': {'limit_price': oco_jump_limit_price},
-                            'client_order_id': self._generate_order_id('loop')})
-                    else:
-                        order_parameters.update({
-                            'limit_price': jump_limit_price,
-                            'stop_price': jump_stop_price,
-                            'client_order_id': self._generate_order_id('loop')})
-                    while self.retry_order_creation > 0:
-                        order = self.submit_order(order_parameters)
-                        if order:
-                            time.sleep(self.order_status_check_delay)
-                            order = self.get_order(order['id'])
-                            if order['status'] != 'rejected':
-                                self.retry_order_creation = self.config.retry_order_creation
-                                break
-                            else:
-                                self.log.info('The loop jump order was rejected: {}'.format(order))
-                        self.log.info('Creating loop jump order failed. Retries left: {}'.format(self.retry_order_creation))
-                        order_parameters['client_order_id'] = self._generate_order_id('loop')
-                        self.retry_order_creation -= 1
+            order = self.submit_order(order_params)
 
-                # If order creation failed after all attempts terminate Trader.
-                if not order:
-                    termination_reason = 'Creating loop order failed after {} retries.'.format(self.retry_order_creation*2)
-                    if self.strategy.enable_email_monitoring:
-                        response = self._send_termination_alert(reason=termination_reason)
-                        self.log.info(response)
-                    self._terminate(reason=termination_reason)
+            if not order:
+                self.log.warning('Creating loop order failed.')
+                return
 
-                self.log.info('Order status: {}'.format(order['status']))
+            filled, status, order = self.wait_for_fill(order)
 
-                # Keep track of the order id and next order side.
-                self.state['last_order_id'] = order['id']
-                self.state['next_order_side'] = self.state['side_map'][self.state['next_order_side']]
+            if not filled:
+                self.log.warning('Loop order failed with status: {}'.format(status))
+                return
+
+            self.log.info('Loop order filled.')
+            self.state['last_order'] = order
+            self.state['side'] = self.switch_order_side()
+            # Send email if monitoring is enabled.
+            self._send_status_email(order)
+            # Log the order data.
+            self._log_order_status(order)
+            return
 
     def _make_strategy_safe(self):
         '''
@@ -668,19 +631,9 @@ class Trader(threading.Thread):
         if (time_diff >= email_frequency_in_minutes) or send_immediately:
             message = '''
             Open Position: {position_size} {position_symbol} <br>
-            Active Order: {side} {quantity} {symbol} {price} <br>
+            Active Order: {side} {quantity} {symbol} <br>
             Order Status: {status}
             '''
-
-            open_orders = self.get_orders(status='open')
-
-            # Check which set of order prices we will use.
-            if self.state['next_order_side'] == 'buy':
-                loop_limit_price = self.strategy.loop_buy_limit_price
-                loop_stop_price = self.strategy.loop_buy_stop_price
-            elif self.state['next_order_side'] == 'sell':
-                loop_limit_price = self.strategy.loop_sell_limit_price
-                loop_stop_price = self.strategy.loop_sell_stop_price
 
             # Get the current open position size. If there is no open position for the symbol
             # the get_position function will return None. In this case we set position_size to 0.
@@ -692,7 +645,6 @@ class Trader(threading.Thread):
 
             # Add variables to the message template.
             message = message.format(
-                price=loop_limit_price,
                 symbol=order['symbol'],
                 side=order['side'],
                 quantity=order['qty'],
