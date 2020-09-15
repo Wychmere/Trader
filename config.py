@@ -3,8 +3,8 @@ General configuration variables for Trader.
 '''
 
 # API credentials.
-api_key = 'PKPIHL3MCWPPH4NXOA78'
-api_secret = 'rArHDGVszKecHehqcliWTcmxLpGhuXkgoXOKcv1u'
+api_key = ''
+api_secret = ''
 
 # Set to True in order to use paper-trading.
 use_sandbox = True
@@ -31,7 +31,7 @@ update_time = 0.0001
 order_status_check_delay = 3
 
 # The Sendgrid API key used for email monitoring.
-sendgrid_api_key = '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'
+sendgrid_api_key = ''
 
 # The sending email address used for email monitoring.
 email_monitoring_sending_email = 'trader@trader.io'
