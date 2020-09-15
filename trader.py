@@ -361,7 +361,7 @@ class Trader(threading.Thread):
 
     def switch_order_side(self):
         self.order_sides.reverse()
-        return self.order_sides[-1]
+        return self.order_sides[0]
 
     def reverse_order_side(self):
         self.order_side()
