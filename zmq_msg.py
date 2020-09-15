@@ -11,6 +11,7 @@ class Server:
 
         self.last_updated = time.time()
         self.orders = {}
+        self.prices = {}
 
     def run(self):
         while True:
@@ -18,13 +19,20 @@ class Server:
             if message['action'] == 'read':
                 response = {
                     'last_updated': self.last_updated,
-                    'orders': self.orders}
+                    'orders': self.orders,
+                    'prices': self.prices}
                 self.socket.send_json(response, zmq.NOBLOCK)
 
             elif message['action'] == 'write':
                 self.last_updated = time.time()
-                order = message['data']
-                self.orders[order['id']] = order
+                if message['type'] == 'order':
+                    order = message['data']
+                    self.orders[order['id']] = order
+                elif message['type'] == 'price':
+                    symbol = message['data']['symbol']
+                    price = message['data']['price']
+                    self.prices[symbol] = price
+                print(self.prices)
                 self.socket.send_json({'status': 'ok'})
 
 
@@ -39,8 +47,11 @@ class Client:
         self.socket.send_json(message)
         return self.socket.recv_json()
 
-    def write(self, data):
-        message = {'action': 'write', 'data': data}
+    def write(self, type, data):
+        message = {
+            'action': 'write',
+            'type': type,
+            'data': data}
         self.socket.send_json(message)
         self.socket.recv_json()
 

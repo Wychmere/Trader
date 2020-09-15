@@ -387,20 +387,25 @@ class Trader(threading.Thread):
                     continue
                 else:
                     break
-            elif order['status'] in ('rejected', 'canceled'):
+            elif order['status'] in ('rejected', 'canceled',):
                 status = order['status']
                 break
             elif order['status'] == 'filled':
                 status = order['status']
                 filled = True
                 break
+            else:
+                status = order['status']
             time.sleep(2)
         return filled, status, order
 
-    def market_price(self, stream=True):
-        #TODO Add streaming.
-        last_trade = self.client.get_last_trade(self.symbol)
-        return last_trade.price
+    def market_price(self, streaming=True):
+        if streaming:
+            response = self.zmq_client.read()
+            return response['prices'][self.symbol]
+        else:
+            last_trade = self.client.get_last_trade(self.symbol)
+            return last_trade.price
 
     def loop(self):
         '''The main loop of Trader. Implement all trading logic here.'''
@@ -425,14 +430,14 @@ class Trader(threading.Thread):
 
             if not order:
                 self.log.warning('Creating initial order failed.')
-                self.state = None
+                self.state = {}
                 return
 
             filled, status, order = self.wait_for_fill(order)
 
             if not filled:
                 self.log.warning('Initial order failed with status: {}'.format(status))
-                self.state = None
+                self.state = {}
                 return
 
             self.log.info('Order filled.')
@@ -457,7 +462,7 @@ class Trader(threading.Thread):
             order_params = self.order_parameters()
 
             # Try to create the order.
-            self.log.info('Created initial order: {}'.format(order_params))
+            self.log.info('Created loop order: {}'.format(order_params))
 
             order = self.submit_order(order_params)
 
