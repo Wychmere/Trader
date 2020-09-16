@@ -32,7 +32,6 @@ class Server:
                     symbol = message['data']['symbol']
                     price = message['data']['price']
                     self.prices[symbol] = price
-                print(self.prices)
                 self.socket.send_json({'status': 'ok'})
 
 

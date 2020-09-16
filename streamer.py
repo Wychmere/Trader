@@ -45,6 +45,7 @@ if __name__ == '__main__':
     @conn.on(r'.*')
     async def on_price_update(conn, channel, data):
         if channel.startswith('T.'):
+            print('{} {} {}'.format(data.timestamp, data.symbol, data.price))
             zmq.write(
                 type='price',
                 data={
