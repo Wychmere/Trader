@@ -160,6 +160,7 @@ class Trader(threading.Thread):
         ##################
         while True:
             try:
+                self._signals()
                 self.loop()
                 time.sleep(self.update_time)
             except KeyboardInterrupt:
