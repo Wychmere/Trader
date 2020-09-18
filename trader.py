@@ -408,10 +408,10 @@ class Trader(threading.Thread):
         if streaming:
             response = self.zmq_client.read()
             price = response['prices'][self.symbol]['price']
-            timestamp = response['prices'][self.symbol]['timestamp']
-            timestamp = timestamp.split('.')[0]
-            self.log.info(
-                f'Fetched price: {self.symbol} | {price} | {timestamp}')
+            #timestamp = response['prices'][self.symbol]['timestamp']
+            #timestamp = timestamp.split('.')[0]
+            #self.log.info(
+            #    f'Fetched price: {self.symbol} | {price} | {timestamp}')
             return price
         else:
             last_trade = self.client.get_last_trade(self.symbol)
@@ -434,9 +434,9 @@ class Trader(threading.Thread):
             order_params = self.order_parameters()
 
             # Create the first order.
-            self.log.info('Created initial order: {}'.format(order_params))
-
             order = self.submit_order(order_params)
+
+            self.log.info('Created initial order: {}'.format(order_params))
 
             if not order:
                 self.log.warning('Creating initial order failed.')
@@ -474,9 +474,9 @@ class Trader(threading.Thread):
             order_params = self.order_parameters()
 
             # Try to create the order.
-            self.log.info('Created loop order: {}'.format(order_params))
-
             order = self.submit_order(order_params)
+
+            self.log.info('Created loop order: {}'.format(order_params))
 
             if not order:
                 self.log.warning('Creating loop order failed.')
