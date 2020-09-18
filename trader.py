@@ -425,7 +425,7 @@ class Trader(threading.Thread):
             order_params = self.order_parameters()
 
             # Create the first order.
-            #self.log.info('Created initial order: {}'.format(order_params))
+            self.log.info('Created initial order: {}'.format(order_params))
 
             order = self.submit_order(order_params)
 
@@ -441,13 +441,13 @@ class Trader(threading.Thread):
                 self.state = {}
                 return
 
-            #self.log.info('Order filled.')
+            self.log.info('Order filled.')
             self.state['last_order'] = order
             self.state['side'] = self.switch_order_side()
             # Send email if monitoring is enabled.
             #self._send_status_email(order)
             # Log the order data.
-            #self._log_order_status(order)
+            self._log_order_status(order)
             return
 
         else:
@@ -463,7 +463,7 @@ class Trader(threading.Thread):
             order_params = self.order_parameters()
 
             # Try to create the order.
-            #self.log.info('Created loop order: {}'.format(order_params))
+            self.log.info('Created loop order: {}'.format(order_params))
 
             order = self.submit_order(order_params)
 
@@ -477,13 +477,13 @@ class Trader(threading.Thread):
                 self.log.warning('Loop order failed with status: {}'.format(status))
                 return
 
-            #self.log.info('Loop order filled.')
+            self.log.info('Loop order filled.')
             self.state['last_order'] = order
             self.state['side'] = self.switch_order_side()
             # Send email if monitoring is enabled.
             #self._send_status_email(order)
             # Log the order data.
-            #self._log_order_status(order)
+            self._log_order_status(order)
             return
 
     def _make_strategy_safe(self):
