@@ -320,12 +320,16 @@ class Trader(threading.Thread):
         '''
         Cancel all orders for the traded symbol.
         '''
-        skip_statusses = ['canceled', 'filled']
-        open_orders = self.get_orders(streaming=False)
-        for order in open_orders:
-            if order.symbol == self.symbol \
-            and order.status not in skip_statusses:
-                self.client.cancel_order(order.id)
+        try:
+            skip_statusses = ['canceled', 'filled']
+            open_orders = self.get_orders(streaming=False)
+            for order in open_orders:
+                if order.symbol == self.symbol \
+                and order.status not in skip_statusses:
+                    self.client.cancel_order(order.id)
+        except:
+            err = traceback.format_exc()
+            self.log.error(f'Canceling {self.symbol} orders failed: {err}')
 
     def oco_filled(self, order, leg):
         '''
@@ -403,7 +407,12 @@ class Trader(threading.Thread):
     def market_price(self, streaming=True):
         if streaming:
             response = self.zmq_client.read()
-            return response['prices'][self.symbol]
+            price = response['prices'][self.symbol]['price']
+            timestamp = response['prices'][self.symbol]['timestamp']
+            timestamp = timestamp.split('.')[0]
+            self.log.info(
+                f'Fetched price: {self.symbol} | {price} | {timestamp}')
+            return price
         else:
             last_trade = self.client.get_last_trade(self.symbol)
             return last_trade.price
@@ -431,6 +440,7 @@ class Trader(threading.Thread):
 
             if not order:
                 self.log.warning('Creating initial order failed.')
+                self.cancel_symbol_orders()
                 self.state = {}
                 return
 
@@ -438,6 +448,7 @@ class Trader(threading.Thread):
 
             if not filled:
                 self.log.warning('Initial order failed with status: {}'.format(status))
+                self.cancel_symbol_orders()
                 self.state = {}
                 return
 
@@ -469,12 +480,14 @@ class Trader(threading.Thread):
 
             if not order:
                 self.log.warning('Creating loop order failed.')
+                self.cancel_symbol_orders()
                 return
 
             filled, status, order = self.wait_for_fill(order)
 
             if not filled:
                 self.log.warning('Loop order failed with status: {}'.format(status))
+                self.cancel_symbol_orders()
                 return
 
             self.log.info('Loop order filled.')

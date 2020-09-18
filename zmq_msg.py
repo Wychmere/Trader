@@ -31,7 +31,8 @@ class Server:
                 elif message['type'] == 'price':
                     symbol = message['data']['symbol']
                     price = message['data']['price']
-                    self.prices[symbol] = price
+                    timestamp = message['data']['timestamp']
+                    self.prices[symbol] = {'price': price, 'timestamp':timestamp}
                 self.socket.send_json({'status': 'ok'})
 
 
