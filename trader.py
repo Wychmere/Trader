@@ -95,6 +95,10 @@ class Trader(threading.Thread):
         elif self.strategy.initial_order_side == 'sell':
             self.order_sides = ['sell', 'buy']
 
+        self.max_trades_per_session = self.strategy.max_trades_per_session
+        self.number_of_trades_for_current_session = 0
+        self.last_trade_side = None
+
     def construct_logger(self):
         '''
         Create logger object.
@@ -420,6 +424,11 @@ class Trader(threading.Thread):
     def loop(self):
         '''The main loop of Trader. Implement all trading logic here.'''
 
+        # Continue with the execution only if the max number of trades is not yet reached. Don't stop on a "buy" trade.
+        if self.number_of_trades_for_current_session >= self.max_trades_per_session and self.last_trade_side == 'sell':
+            self.log.info('Max trades per session reached.')
+            return
+
         market_price = self.market_price()
 
         # Executed only at the initial run.
@@ -453,6 +462,8 @@ class Trader(threading.Thread):
                 return
 
             self.log.info('Order filled.')
+            self.last_trade_side = self.state['side']
+            self.number_of_trades_for_current_session += 1
             self.state['last_order'] = order
             self.state['side'] = self.switch_order_side()
             # Send email if monitoring is enabled.
@@ -491,6 +502,8 @@ class Trader(threading.Thread):
                 return
 
             self.log.info('Loop order filled.')
+            self.last_trade_side = self.state['side']
+            self.number_of_trades_for_current_session += 1
             self.state['last_order'] = order
             self.state['side'] = self.switch_order_side()
             # Send email if monitoring is enabled.

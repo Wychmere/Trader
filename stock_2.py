@@ -24,3 +24,6 @@ enable_email_monitoring = True
 
 # The frequency (in minutes) at which to send monitoring emails.
 email_monitoring_frequency = 1
+
+# The maximum trades per session.
+max_trades_per_session = 10
