@@ -517,7 +517,7 @@ class Trader(threading.Thread):
         Check the set of parameters in the strategy and make sure
         that unneeded ones are set to None and needed ones are not.
         '''
-        initial_trade_price = self.strategy.initial_trade_price
+        initial_trade_price = self.strategy.initial_signal_price
         initial_limit_spread = self.strategy.initial_limit_spread
         loop_signal_price = self.strategy.loop_signal_price
         loop_trade_spread = self.strategy.loop_trade_spread

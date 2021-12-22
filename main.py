@@ -138,14 +138,6 @@ def get_user_input():
 def main():
     register_signals()
 
-    def disable_traders_logs():
-        for t in traders:
-            t.log.disabled = True
-
-    def enable_traders_logs():
-        for t in traders:
-            t.log.disabled = False
-
     # Create the main threads logger.
     log = construct_logger('main', config.log_file, config.log_level)
 
@@ -170,21 +162,6 @@ def main():
             if not any([t.is_alive() for t in traders]):
                 log.info('All threads are terminated.')
                 break
-
-            # For each Trader check if max trades is reached. If so prompt user to enable trading.
-            for t in traders:
-                if t.number_of_trades_for_current_session >= t.max_trades_per_session and t.last_trade_side == 'sell':
-                    disable_traders_logs()
-                    user_input = input(f'[{t.name}] Maximum number of trades reached. Start another loop? Type "yes" to confirm and "no" to terminate Trader. ?\n>>>')
-                    if user_input == 'yes':
-                        t.number_of_trades_for_current_session = 0
-                    elif user_input == 'no':
-                        t.log.disabled = False
-                        t._shutdown_flag.set()
-                        t.join()
-                        traders = [t for t in traders if t.is_alive()]
-                    enable_traders_logs()
-
             time.sleep(5)
 
         # ServiceExit will be raised on KeyboardInterrupt we will use this
