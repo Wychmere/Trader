@@ -98,6 +98,7 @@ class Trader(threading.Thread):
         self.max_trades_per_session = self.strategy.max_trades_per_session
         self.number_of_trades_for_current_session = 0
         self.last_trade_side = None
+        self.notify_on_max_trades_reached = True
 
     def construct_logger(self):
         '''
@@ -427,8 +428,17 @@ class Trader(threading.Thread):
         # Continue with the execution only if the max number of trades is not yet reached. Don't stop on a "buy" trade.
         if self.number_of_trades_for_current_session >= self.max_trades_per_session and self.last_trade_side == 'sell':
             self.log.info('Max trades per session reached.')
+            if self.strategy.enable_email_monitoring and self.notify_on_max_trades_reached:
+                self.email_sender.send(
+                    from_email=self.config.email_monitoring_sending_email,
+                    to_email=self.config.email_monitoring_receiving_email,
+                    subject=f'{self.symbol} max trades reached.',
+                    message=f'{self.symbol} max trades reached.'
+                )
+                self.notify_on_max_trades_reached = False
             return
 
+        self.notify_on_max_trades_reached = True
         market_price = self.market_price()
 
         # Executed only at the initial run.
