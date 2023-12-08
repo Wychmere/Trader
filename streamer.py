@@ -4,7 +4,9 @@ import zmq_msg
 import logging
 import pathlib
 import importlib
-from alpaca_trade_api import StreamConn
+from alpaca_trade_api.common import URL
+from alpaca_trade_api.stream import Stream
+
 
 WAIT_AFTER_ERROR = 3
 STRATEGY_FILE_PREFIX = 'stock_'
@@ -18,14 +20,15 @@ def construct_logger(filename):
         handlers=log_headers)
     return logging.getLogger(__name__)
 
-def construct_subscriptions(initial_subscriptions=[]):
+def construct_quote_subscriptions():
     working_directory = pathlib.Path(__file__).parent
     strategy_files = working_directory.glob(f'{STRATEGY_FILE_PREFIX}*.py')
+    initial_subscriptions = []
     for strategy_file in strategy_files:
         module_name = strategy_file.name.split('.py')[0]
         strategy = sys.modules.get(module_name)
         strategy = importlib.import_module(module_name)
-        initial_subscriptions.append(f'alpacadatav1/T.{strategy.symbol}')
+        initial_subscriptions.append(strategy.symbol)
     return initial_subscriptions
 
 if __name__ == '__main__':
@@ -34,28 +37,33 @@ if __name__ == '__main__':
 
     if config.use_sandbox:
         base_url = 'https://paper-api.alpaca.markets'
+        data_feed = 'iex'
     else:
         base_url = 'https://api.alpaca.markets'
+        data_feed = 'sip'
 
-    conn = StreamConn(
+    stream = Stream(
         key_id=config.api_key,
         secret_key=config.api_secret,
-        base_url=base_url)
+        base_url=URL(base_url),
+        data_feed=data_feed
+    )
 
-    @conn.on(r'.*')
-    async def on_price_update(conn, channel, data):
-        if channel.startswith('T.'):
-            #print('{} {} {}'.format(data.timestamp, data.symbol, data.price))
-            zmq.write(
-                type='price',
-                data={
-                    'timestamp': str(data.timestamp),
-                    'price': data.price,
-                    'symbol': data.symbol
-                }
-            )
-        elif channel == 'trade_updates':
-            zmq.write(type='order', data=data.order)
+    async def quote_callback(quote):
+        zmq.write(
+            type='price',
+            data={
+                'timestamp': str(quote.timestamp),
+                'price': quote.price,
+                'symbol': quote.symbol
+            }
+        )
 
-    subscriptions = construct_subscriptions(['trade_updates'])
-    conn.run(subscriptions)
+    async def trade_callback(trade):
+        print(trade)
+        zmq.write(type='order', data=dict(trade.order))
+
+    symbols = construct_quote_subscriptions()
+    stream.subscribe_trades(quote_callback, *symbols)
+    stream.subscribe_trade_updates(trade_callback)
+    stream.run()
