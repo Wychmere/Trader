@@ -413,10 +413,9 @@ class Trader(threading.Thread):
         if streaming:
             response = self.zmq_client.read()
             price = response['prices'][self.symbol]['price']
-            #timestamp = response['prices'][self.symbol]['timestamp']
-            #timestamp = timestamp.split('.')[0]
-            #self.log.info(
-            #    f'Fetched price: {self.symbol} | {price} | {timestamp}')
+            timestamp = response['prices'][self.symbol]['timestamp']
+            timestamp = timestamp.split('.')[0]
+            self.log.info(f'Fetched price: {self.symbol} | {price} | {timestamp}')
             return price
         else:
             last_trade = self.client.get_last_trade(self.symbol)
