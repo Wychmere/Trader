@@ -12,6 +12,7 @@ import logging
 import traceback
 import threading
 import email_sender
+from datetime import datetime
 import alpaca_trade_api as tradeapi
 from alpaca_trade_api.rest import APIError as APIError
 from alpaca_trade_api.entity import Order as alpaca_order
@@ -99,6 +100,10 @@ class Trader(threading.Thread):
         self.number_of_trades_for_current_session = 0
         self.last_trade_side = None
         self.notify_on_max_trades_reached = True
+
+        # TODO: Remove price stream log file after debugging is done
+        self.price_stream_log_file = open(f'{self.symbol}_price_stream_log.log', 'a+')
+        self.prev_price_strem_log_timestamp = None
 
     def construct_logger(self):
         '''
@@ -415,7 +420,11 @@ class Trader(threading.Thread):
             price = response['prices'][self.symbol]['price']
             timestamp = response['prices'][self.symbol]['timestamp']
             timestamp = timestamp.split('.')[0]
-            self.log.info(f'Fetched price: {self.symbol} | {price} | {timestamp}')
+            if timestamp != self.prev_price_strem_log_timestamp:
+                self.price_stream_log_file.write(f'Fetched price: [{datetime.now()}] | {price} | {timestamp}')
+                self.price_stream_log_file.flush()
+                self.prev_price_strem_log_timestamp = timestamp
+            # self.log.info(f'Fetched price: {self.symbol} | {price} | {timestamp}')
             return price
         else:
             last_trade = self.client.get_last_trade(self.symbol)
