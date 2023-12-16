@@ -499,12 +499,20 @@ class Trader(threading.Thread):
             self.state['price'] = self.strategy.loop_signal_price
 
             # Check which set of order prices we should use.
-            if self.state['side'] == 'buy' and market_price < self.state['price'] \
-            or self.state['side'] == 'sell' and market_price > self.state['price']:
+            if (self.state['side'] == 'buy' and market_price < self.state['price']) \
+            or (self.state['side'] == 'sell' and market_price > self.state['price']):
                 return
 
             # Generate the order parameters.
             order_params = self.order_parameters()
+
+            # Logging added to troubleshoot loop orders created at wrong prices
+            self.log.info(f"""
+            State: {self.state}
+            Market price: {market_price}
+            Order params: {order_params}
+            Loop signal price: {self.strategy.loop_signal_price}
+            """)
 
             # Try to create the order.
             order = self.submit_order(order_params)
