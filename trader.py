@@ -416,10 +416,14 @@ class Trader(threading.Thread):
 
     def market_price(self, streaming=True):
         if streaming:
+            today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).isoformat().split('.')[0]
             response = self.zmq_client.read()
             price = response['prices'][self.symbol]['price']
             timestamp = response['prices'][self.symbol]['timestamp']
             timestamp = timestamp.split('.')[0]
+            if timestamp < today:
+                logging.warning(f"Streaming price is stale: {response}")
+                return
             if timestamp != self.prev_price_strem_log_timestamp:
                 self.price_stream_log_file.write(f'Fetched price: [{datetime.now()}] | {price} | {timestamp}')
                 self.price_stream_log_file.flush()
@@ -453,13 +457,16 @@ class Trader(threading.Thread):
         self.notify_on_max_trades_reached = True
         market_price = self.market_price()
 
+        if not market_price:
+            return
+
         # Executed only at the initial run.
         if not self.state:
             self.state['side'] = self.strategy.initial_order_side
             self.state['price'] = self.strategy.initial_signal_price
 
-            if self.state['side'] == 'buy' and market_price < self.state['price'] \
-            or self.state['side'] == 'sell' and market_price > self.state['price']:
+            if self.state['side'] == 'buy' and market_price <= self.state['price'] \
+            or self.state['side'] == 'sell' and market_price >= self.state['price']:
                 return
 
             order_params = self.order_parameters()
@@ -499,8 +506,8 @@ class Trader(threading.Thread):
             self.state['price'] = self.strategy.loop_signal_price
 
             # Check which set of order prices we should use.
-            if (self.state['side'] == 'buy' and market_price < self.state['price']) \
-            or (self.state['side'] == 'sell' and market_price > self.state['price']):
+            if (self.state['side'] == 'buy' and market_price <= self.state['price']) \
+            or (self.state['side'] == 'sell' and market_price >= self.state['price']):
                 return
 
             # Generate the order parameters.
