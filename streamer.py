@@ -4,6 +4,7 @@ import zmq_msg
 import logging
 import pathlib
 import importlib
+from datetime import datetime
 from alpaca_trade_api.common import URL
 from alpaca_trade_api.stream import Stream
 
@@ -53,7 +54,8 @@ if __name__ == '__main__':
         zmq.write(
             type='price',
             data={
-                'timestamp': str(quote.timestamp),
+                'timestamp': datetime.now().isoformat(),
+                'quote_timestamp': str(quote.timestamp),
                 'price': quote.price,
                 'symbol': quote.symbol
             }
