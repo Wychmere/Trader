@@ -32,6 +32,12 @@ def construct_quote_subscriptions():
         initial_subscriptions.append(strategy.symbol)
     return initial_subscriptions
 
+def valid_quote_conditions(conditions):
+    for condition in (' ', 'I', '@'):
+        if condition in conditions:
+            return True
+    return False
+
 if __name__ == '__main__':
     log = construct_logger('streamer.log')
     zmq = zmq_msg.Client()
@@ -51,6 +57,10 @@ if __name__ == '__main__':
     )
 
     async def quote_callback(quote):
+        if quote.tape not in ('A', 'B', 'C'):
+            return
+        if not valid_quote_conditions(quote.conditions):
+            return
         zmq.write(
             type='price',
             data={
