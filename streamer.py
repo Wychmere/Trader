@@ -57,7 +57,7 @@ if __name__ == '__main__':
     )
 
     async def quote_callback(quote):
-        if quote.tape not in ('A', 'B', 'C'):
+        if quote.tape not in (' ', 'B', 'C'):
             return
         if not valid_quote_conditions(quote.conditions):
             return
